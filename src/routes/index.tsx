@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Shell, Apple } from "lucide-react";
 import { EnergySliders } from "../components/EnergySliders";
 import { ActivityCard } from "../components/ActivityCard";
 import { TimerScreen } from "../components/TimerScreen";
@@ -77,7 +77,13 @@ function MainScreen() {
     }
   }, []);
 
-  const handlePhaseChange = useCallback(() => {}, []);
+  const handlePhaseChange = useCallback((_phase: string, prevPhase: string) => {
+    if (prevPhase === "work") {
+      playSound("bell.mp3");         // work done → break
+    } else {
+      playSound("bell-reverse.mp3"); // break done → back to work
+    }
+  }, []);
 
   const timer = useTimer({
     onComplete: handleTimerComplete,
@@ -86,29 +92,38 @@ function MainScreen() {
   });
   totalElapsedRef.current = timer.totalElapsedMs;
 
+  const [doingActivityFull, setDoingActivityFull] = useState<Doc<"activities"> | null>(null);
+
   const handleDo = (activity: Doc<"activities">) => {
-    if (activity.timerSettings) {
-      setTimerActivity(activity);
-      setTimerMinimized(false);
-      timer.start(activity.timerSettings);
-    } else {
-      if (doingTimerRef.current) clearTimeout(doingTimerRef.current);
-      setDoingActivity(activity.name);
-      doingTimerRef.current = setTimeout(() => {
-        setDoingActivity(null);
-      }, 5 * 60_000);
-    }
+    if (doingTimerRef.current) clearTimeout(doingTimerRef.current);
+    setDoingActivity(activity.name);
+    setDoingActivityFull(activity);
+    doingTimerRef.current = setTimeout(() => {
+      setDoingActivity(null);
+      setDoingActivityFull(null);
+    }, 5 * 60_000);
+  };
+
+  const handleStartTimer = () => {
+    if (!doingActivityFull?.timerSettings) return;
+    if (doingTimerRef.current) clearTimeout(doingTimerRef.current);
+    setDoingActivity(null);
+    setTimerActivity(doingActivityFull);
+    setDoingActivityFull(null);
+    setTimerMinimized(false);
+    timer.start(doingActivityFull.timerSettings);
   };
 
   const handleDoneDoing = () => {
     if (doingTimerRef.current) clearTimeout(doingTimerRef.current);
     setDoingActivity(null);
+    setDoingActivityFull(null);
   };
 
   const handleTimerStop = () => {
-    // For meditation (infinite timer), stopping is how you finish — log the session
+    // Both timers are infinite — stopping is how you finish, so log the session
     const act = timerActivityRef.current;
-    if (act?.timerSettings?.type === "meditation" && totalElapsedRef.current > 0) {
+    if (act && totalElapsedRef.current > 0) {
       logSession({
         activityId: act._id,
         mentalEnergyCostAtTime: mentalEnergyRef.current,
@@ -174,6 +189,7 @@ function MainScreen() {
           totalElapsedMs={timer.totalElapsedMs}
           phase={timer.phase}
           isPaused={timer.isPaused}
+          completedPomodoros={timer.completedPomodoros}
           onPause={timer.pause}
           onResume={timer.resume}
           onMinimize={() => setTimerMinimized(true)}
@@ -196,7 +212,12 @@ function MainScreen() {
   if (doingActivity) {
     return (
       <div className="pt-4">
-        <DoingScreen activityName={doingActivity} onDone={handleDoneDoing} />
+        <DoingScreen
+          activityName={doingActivity}
+          timerSettings={doingActivityFull?.timerSettings}
+          onDone={handleDoneDoing}
+          onStartTimer={handleStartTimer}
+        />
         <div className="h-20" />
         <div className="fixed bottom-0 left-0 right-0 bg-base-950/90 backdrop-blur border-t border-base-800 px-4 py-3 flex justify-center max-w-lg mx-auto">
           <EnergySliders
@@ -290,6 +311,7 @@ function MainScreen() {
                       item={item}
                       mentalEnergy={mentalEnergy}
                       physicalEnergy={physicalEnergy}
+                      onDo={handleDo}
                     />
                   ))}
                   {prioritized.too_tired.length > 0 && (
@@ -401,17 +423,39 @@ function MainScreen() {
   );
 }
 
-function DoingScreen({ activityName, onDone }: { activityName: string; onDone: () => void }) {
+function DoingScreen({
+  activityName,
+  timerSettings,
+  onDone,
+  onStartTimer,
+}: {
+  activityName: string;
+  timerSettings?: { type: "pomodoro" | "meditation" } | undefined;
+  onDone: () => void;
+  onStartTimer: () => void;
+}) {
+  const TimerIcon = timerSettings?.type === "meditation" ? Shell : Apple;
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
       <p className="text-base-500 text-sm uppercase tracking-wider mb-3">Doing</p>
       <h2 className="text-2xl font-semibold text-base-50 mb-10">{activityName}</h2>
-      <button
-        onClick={onDone}
-        className="bg-base-850 border border-base-700 text-base-200 text-base font-medium px-8 py-3 rounded-xl hover:bg-base-800 transition-colors"
-      >
-        Done
-      </button>
+      <div className="flex flex-col items-center gap-4">
+        {timerSettings && (
+          <button
+            onClick={onStartTimer}
+            className="border border-accent/30 bg-accent/10 text-accent text-base font-medium px-8 py-3 rounded-xl hover:bg-accent/20 transition-colors flex items-center gap-2"
+          >
+            <TimerIcon size={18} />
+            Start timer
+          </button>
+        )}
+        <button
+          onClick={onDone}
+          className="text-base-500 text-base hover:text-base-300 transition-colors mt-4 px-6 py-2"
+        >
+          Dismiss
+        </button>
+      </div>
     </div>
   );
 }

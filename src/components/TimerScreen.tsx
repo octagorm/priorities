@@ -8,6 +8,7 @@ interface TimerScreenProps {
   totalElapsedMs: number;
   phase: TimerPhase;
   isPaused: boolean;
+  completedPomodoros: number;
   onPause: () => void;
   onResume: () => void;
   onMinimize: () => void;
@@ -26,6 +27,7 @@ export function TimerScreen({
   totalElapsedMs,
   phase,
   isPaused,
+  completedPomodoros,
   onPause,
   onResume,
   onMinimize,
@@ -41,6 +43,12 @@ export function TimerScreen({
       <div className="text-6xl font-light text-base-50 tabular-nums mb-12 font-mono">
         {formatTimerDisplay(displayMs)}
       </div>
+
+      {completedPomodoros > 0 && (phase === "work" || phase === "break") && (
+        <p className="text-base-500 text-sm mb-8 -mt-8">
+          {completedPomodoros} {completedPomodoros === 1 ? "pomodoro" : "pomodoros"} completed
+        </p>
+      )}
 
       <div className="flex items-center gap-4">
         <button

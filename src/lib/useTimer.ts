@@ -13,7 +13,7 @@ export interface TimerSettings {
 interface UseTimerOptions {
   onComplete: () => void;
   onGong: () => void;
-  onPhaseChange: (phase: TimerPhase) => void;
+  onPhaseChange: (phase: TimerPhase, prevPhase: TimerPhase) => void;
 }
 
 export function useTimer({ onComplete, onGong, onPhaseChange }: UseTimerOptions) {
@@ -26,8 +26,10 @@ export function useTimer({ onComplete, onGong, onPhaseChange }: UseTimerOptions)
   const [phase, setPhase] = useState<TimerPhase>("work");
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [completedPomodoros, setCompletedPomodoros] = useState(0);
 
   const lastGongRef = useRef(0);
+  const phaseRef = useRef<TimerPhase>("work");
   const onCompleteRef = useRef(onComplete);
   const onGongRef = useRef(onGong);
   const onPhaseChangeRef = useRef(onPhaseChange);
@@ -42,7 +44,7 @@ export function useTimer({ onComplete, onGong, onPhaseChange }: UseTimerOptions)
     return () => worker.terminate();
   }, []);
 
-  // Handle ticks from worker
+  // Handle ticks from worker — no React state in closure, use refs for reads
   useEffect(() => {
     const worker = workerRef.current;
     if (!worker) return;
@@ -73,34 +75,32 @@ export function useTimer({ onComplete, onGong, onPhaseChange }: UseTimerOptions)
         });
       } else {
         // Pomodoro: count DOWN
+        // Use refs for phase to avoid stale closures; keep side effects out of updaters
         setRemainingMs((prev) => {
           const next = prev - 1000;
-          setTotalElapsedMs((e) => e + 1000);
-
           if (next <= 0) {
-            if (phase === "work") {
-              const breakMs = (settings.breakMinutes ?? 5) * 60_000;
+            const currentPhase = phaseRef.current;
+            if (currentPhase === "work") {
+              phaseRef.current = "break";
               setPhase("break");
-              onPhaseChangeRef.current("break");
-              onGongRef.current();
-              return breakMs;
+              setCompletedPomodoros((c) => c + 1);
+              onPhaseChangeRef.current("break", "work");
+              return (settings.breakMinutes ?? 5) * 60_000;
             } else {
-              // Break done
-              worker.postMessage("stop");
-              setIsRunning(false);
-              onGongRef.current();
-              setTimeout(() => onCompleteRef.current(), 100);
-              return 0;
+              phaseRef.current = "work";
+              setPhase("work");
+              onPhaseChangeRef.current("work", "break");
+              return (settings.workMinutes ?? 25) * 60_000;
             }
           }
-
           return next;
         });
+        setTotalElapsedMs((e) => e + 1000);
       }
     };
 
     worker.onmessage = handleTick;
-  }, [isRunning, isPaused, phase]);
+  }, [isRunning, isPaused]);
 
   // Start/stop worker based on running state
   useEffect(() => {
@@ -118,14 +118,17 @@ export function useTimer({ onComplete, onGong, onPhaseChange }: UseTimerOptions)
     if (settings.type === "meditation") {
       setRemainingMs(0);
       setPhase("meditation");
+      phaseRef.current = "meditation";
     } else {
       const initialMs = (settings.workMinutes ?? 25) * 60_000;
       setRemainingMs(initialMs);
       setPhase("work");
+      phaseRef.current = "work";
     }
     setIsRunning(true);
     setIsPaused(false);
     setTotalElapsedMs(0);
+    setCompletedPomodoros(0);
     lastGongRef.current = 0;
   }, []);
 
@@ -138,5 +141,5 @@ export function useTimer({ onComplete, onGong, onPhaseChange }: UseTimerOptions)
     setIsPaused(false);
   }, []);
 
-  return { remainingMs, phase, isRunning, isPaused, totalElapsedMs, start, pause, resume, stop };
+  return { remainingMs, phase, isRunning, isPaused, totalElapsedMs, completedPomodoros, start, pause, resume, stop };
 }

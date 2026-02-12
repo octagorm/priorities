@@ -26,12 +26,15 @@ export function ActivityCard({
   const { activity, section, cooldownRemainingMs, recentFrequency } = item;
   const Icon = CATEGORY_ICONS[activity.category];
 
-  const handleDo = async () => {
-    await logSession({
-      activityId: activity._id,
-      mentalEnergyCostAtTime: mentalEnergy,
-      physicalEnergyCostAtTime: physicalEnergy,
-    });
+  const handleDo = () => {
+    // Timer activities log the session when stopped (with duration), so skip here
+    if (!activity.timerSettings) {
+      logSession({
+        activityId: activity._id,
+        mentalEnergyCostAtTime: mentalEnergy,
+        physicalEnergyCostAtTime: physicalEnergy,
+      });
+    }
     onDo?.(activity);
   };
 
