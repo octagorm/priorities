@@ -2,11 +2,15 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { CATEGORIES, CATEGORY_ICONS, MAX_ENERGY, MentalIcon, PhysicalIcon } from "../../lib/constants";
 import PriorityCurveEditor, {
   type CurvePoint,
 } from "../../components/PriorityCurveEditor";
+import HourlyPriorityEditor, {
+  type HourlyPoint,
+  DEFAULT_HOURLY_CURVE,
+} from "../../components/HourlyPriorityEditor";
 
 export const Route = createFileRoute("/activities/$activityId")({
   component: ActivityEditor,
@@ -35,9 +39,13 @@ function ActivityEditor() {
   const [mentalCost, setMentalCost] = useState(0);
   const [physicalCost, setPhysicalCost] = useState(0);
   const [priorityCurve, setPriorityCurve] = useState<CurvePoint[]>(DEFAULT_CURVE);
+  const [hourlyPoints, setHourlyPoints] = useState<HourlyPoint[]>([...DEFAULT_HOURLY_CURVE]);
+  const [hourlyEnabled, setHourlyEnabled] = useState(false);
   const [notes, setNotes] = useState("");
   const [showPauseDialog, setShowPauseDialog] = useState(false);
   const [pauseWeeks, setPauseWeeks] = useState(1);
+  const [initialized, setInitialized] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (activity) {
@@ -49,35 +57,23 @@ function ActivityEditor() {
         setPriorityCurve(activity.priorityCurve as CurvePoint[]);
       }
       setNotes(activity.notes);
+      if (activity.hourlyPriorityCurve && (activity.hourlyPriorityCurve as HourlyPoint[]).length >= 2) {
+        setHourlyPoints(activity.hourlyPriorityCurve as HourlyPoint[]);
+        setHourlyEnabled(true);
+      } else {
+        setHourlyEnabled(false);
+      }
+      setInitialized(true);
     }
   }, [activity]);
 
-  if (!isNew && activity === undefined) {
-    return <div className="pt-8 text-base-400 text-center">Loading...</div>;
-  }
-  if (!isNew && activity === null) {
-    return <div className="pt-8 text-base-400 text-center">Activity not found.</div>;
-  }
-
-  const isPaused = activity?.pausedUntil && activity.pausedUntil > Date.now();
-
-  const handleSave = async () => {
-    if (isNew) {
-      await createActivity({
-        name,
-        category,
-        mentalEnergyCost: mentalCost,
-        physicalEnergyCost: physicalCost,
-        targetFrequency: { type: "freeform" },
-        priorityCurve,
-        isTemporary: false,
-        notes,
-      });
-    } else {
+  const autoSave = useCallback(() => {
+    if (isNew || !initialized || !activity) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
       if (
-        activity &&
-        (mentalCost !== activity.mentalEnergyCost ||
-          physicalCost !== activity.physicalEnergyCost)
+        mentalCost !== activity.mentalEnergyCost ||
+        physicalCost !== activity.physicalEnergyCost
       ) {
         await logEnergyCostChange({
           activityId: activity._id,
@@ -88,15 +84,49 @@ function ActivityEditor() {
         });
       }
       await updateActivity({
-        id: activityId as Id<"activities">,
+        id: activity._id,
         name,
         category,
         mentalEnergyCost: mentalCost,
         physicalEnergyCost: physicalCost,
         priorityCurve,
+        hourlyPriorityCurve: hourlyEnabled ? hourlyPoints : undefined,
         notes,
       });
+    }, 500);
+  }, [isNew, initialized, activity, name, category, mentalCost, physicalCost, priorityCurve, hourlyEnabled, hourlyPoints, notes, updateActivity, logEnergyCostChange]);
+
+  // Auto-save on any field change (for existing activities)
+  useEffect(() => {
+    if (!isNew && initialized) {
+      autoSave();
     }
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [name, category, mentalCost, physicalCost, priorityCurve, hourlyEnabled, hourlyPoints, notes, autoSave, isNew, initialized]);
+
+  if (!isNew && activity === undefined) {
+    return <div className="pt-8 text-base-400 text-center">Loading...</div>;
+  }
+  if (!isNew && activity === null) {
+    return <div className="pt-8 text-base-400 text-center">Activity not found.</div>;
+  }
+
+  const isPaused = activity?.pausedUntil && activity.pausedUntil > Date.now();
+
+  const handleCreate = async () => {
+    await createActivity({
+      name,
+      category,
+      mentalEnergyCost: mentalCost,
+      physicalEnergyCost: physicalCost,
+      targetFrequency: { type: "freeform" },
+      priorityCurve,
+      hourlyPriorityCurve: hourlyEnabled ? hourlyPoints : undefined,
+      isTemporary: false,
+      notes,
+    });
     navigate({ to: "/" });
   };
 
@@ -127,17 +157,21 @@ function ActivityEditor() {
           onClick={() => navigate({ to: "/" })}
           className="text-base-400 text-sm"
         >
-          Cancel
+          Back
         </button>
         <h1 className="text-lg font-semibold text-base-100">
           {isNew ? "New activity" : "Edit activity"}
         </h1>
-        <button
-          onClick={handleSave}
-          className="text-accent text-sm font-medium"
-        >
-          Save
-        </button>
+        {isNew ? (
+          <button
+            onClick={handleCreate}
+            className="text-accent text-sm font-medium"
+          >
+            Create
+          </button>
+        ) : (
+          <div className="w-12" />
+        )}
       </div>
 
       <div className="space-y-5">
@@ -187,6 +221,32 @@ function ActivityEditor() {
         <Field label="Priority curve">
           <PriorityCurveEditor points={priorityCurve} onChange={setPriorityCurve} />
         </Field>
+
+        {/* Active hours */}
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <label className="text-xs uppercase tracking-wider text-base-500 flex-1">
+              Active hours
+            </label>
+            <button
+              type="button"
+              onClick={() => setHourlyEnabled(!hourlyEnabled)}
+              className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                hourlyEnabled
+                  ? "text-accent border-accent/30 bg-accent/10"
+                  : "text-base-500 border-base-700"
+              }`}
+            >
+              {hourlyEnabled ? "Enabled" : "Disabled"}
+            </button>
+          </div>
+          {hourlyEnabled && (
+            <HourlyPriorityEditor
+              points={hourlyPoints}
+              onChange={setHourlyPoints}
+            />
+          )}
+        </div>
 
         {/* Notes */}
         <Field label="Notes">

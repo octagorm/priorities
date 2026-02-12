@@ -152,6 +152,10 @@ export const create = mutation({
         )
       )
     ),
+    hourlyPriorityCurve: v.optional(v.array(v.object({
+      hour: v.number(),
+      multiplier: v.number(),
+    }))),
     isTemporary: v.boolean(),
     notes: v.string(),
   },
@@ -198,6 +202,10 @@ export const update = mutation({
         )
       )
     ),
+    hourlyPriorityCurve: v.optional(v.array(v.object({
+      hour: v.number(),
+      multiplier: v.number(),
+    }))),
     isTemporary: v.optional(v.boolean()),
     notes: v.optional(v.string()),
   },

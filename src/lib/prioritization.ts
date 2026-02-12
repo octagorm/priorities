@@ -1,5 +1,6 @@
 import type { Doc } from "../../convex/_generated/dataModel";
 import { interpolateCurve, type CurvePoint } from "../components/PriorityCurveEditor";
+import { interpolateHourlyCurve, type HourlyPoint } from "../components/HourlyPriorityEditor";
 
 type Activity = Doc<"activities">;
 type Session = Doc<"sessions">;
@@ -14,6 +15,7 @@ export interface PrioritizedActivity {
   timeSinceLastMs: number | null;
   cooldownRemainingMs?: number;
   sessionCount: number;
+  recentFrequency: string;
 }
 
 export interface PrioritizedResult {
@@ -83,6 +85,54 @@ function legacyCooldown(activity: Activity, timeSinceLastMs: number | null): num
   return null;
 }
 
+// --- Recency-biased frequency ---
+
+function computeRecentFrequency(sessions: Session[], now: number): string {
+  if (sessions.length === 0) return "Never done";
+
+  // Exponentially weighted count over a 30-day window.
+  // Half-life of ~10 days: recent sessions count much more.
+  const HALF_LIFE_MS = 10 * 24 * 3600_000;
+  const DECAY = Math.LN2 / HALF_LIFE_MS;
+  const WINDOW_MS = 30 * 24 * 3600_000;
+
+  let weightedCount = 0;
+  let totalWeight = 0;
+
+  // Integrate weight across the window for normalization
+  // Sum of weights for 30 days: integral of e^(-lambda*t) from 0 to T = (1 - e^(-lambda*T)) / lambda
+  const windowWeightIntegral = (1 - Math.exp(-DECAY * WINDOW_MS)) / DECAY;
+
+  for (const s of sessions) {
+    const age = now - s.startedAt;
+    if (age > WINDOW_MS) continue;
+    const weight = Math.exp(-DECAY * age);
+    weightedCount += weight;
+    totalWeight += weight;
+  }
+
+  if (totalWeight === 0) return "Never done";
+
+  // Convert weighted count to a per-week rate.
+  // Normalize by the integral to get a density, then scale to per-week.
+  const WEEK_MS = 7 * 24 * 3600_000;
+  const perWeek = (weightedCount / windowWeightIntegral) * WEEK_MS;
+
+  if (perWeek >= 6.5) {
+    const perDay = perWeek / 7;
+    return `~${perDay.toFixed(1)}/day`;
+  }
+  if (perWeek >= 0.95) {
+    return `~${perWeek.toFixed(1)}/week`;
+  }
+  // Less than ~1/week: show per month
+  const perMonth = perWeek * (30 / 7);
+  if (perMonth >= 0.95) {
+    return `~${perMonth.toFixed(1)}/month`;
+  }
+  return "Rarely";
+}
+
 // --- Curve-based scoring ---
 
 function getCurveCooldownInfo(
@@ -136,24 +186,40 @@ export function prioritizeActivities(
     const lastSession = actSessions[0] ?? null;
     const timeSinceLastMs = lastSession ? now - lastSession.startedAt : null;
     const sessionCount = actSessions.length;
+    const recentFrequency = computeRecentFrequency(actSessions, now);
 
     // 1. Energy filter
     if (mentalEnergy < activity.mentalEnergyCost || physicalEnergy < activity.physicalEnergyCost) {
       result.too_tired.push({
         activity, section: "too_tired", score: 0,
-        lastSession, timeSinceLastMs, sessionCount,
+        lastSession, timeSinceLastMs, sessionCount, recentFrequency,
       });
       continue;
     }
 
     // 2. Time-of-day filter
-    const tier = activity.hourTiers[currentHour];
-    if (tier === "impossible") {
-      result.wrong_time.push({
-        activity, section: "wrong_time", score: 0,
-        lastSession, timeSinceLastMs, sessionCount,
-      });
-      continue;
+    const hourlyCurve = activity.hourlyPriorityCurve as HourlyPoint[] | undefined;
+    const useHourlyCurve = hourlyCurve && hourlyCurve.length >= 2;
+    let hourlyMultiplier = 1;
+
+    if (useHourlyCurve) {
+      hourlyMultiplier = interpolateHourlyCurve(currentHour, hourlyCurve);
+      if (hourlyMultiplier <= 0) {
+        result.wrong_time.push({
+          activity, section: "wrong_time", score: 0,
+          lastSession, timeSinceLastMs, sessionCount, recentFrequency,
+        });
+        continue;
+      }
+    } else {
+      const tier = activity.hourTiers[currentHour];
+      if (tier === "impossible") {
+        result.wrong_time.push({
+          activity, section: "wrong_time", score: 0,
+          lastSession, timeSinceLastMs, sessionCount, recentFrequency,
+        });
+        continue;
+      }
     }
 
     // Energy match: penalize activities that waste available energy
@@ -194,16 +260,21 @@ export function prioritizeActivities(
       }
 
       // Time-of-day multiplier
-      const hasPreferred = activity.hourTiers.includes("preferred");
-      if (hasPreferred && tier === "possible") {
-        score *= 0.5;
+      if (useHourlyCurve) {
+        score *= hourlyMultiplier;
+      } else {
+        const hasPreferred = activity.hourTiers.includes("preferred");
+        const tier = activity.hourTiers[currentHour];
+        if (hasPreferred && tier === "possible") {
+          score *= 0.5;
+        }
       }
 
       score *= energyMatchMultiplier;
 
       result.available.push({
         activity, section: "available", score,
-        lastSession, timeSinceLastMs, sessionCount,
+        lastSession, timeSinceLastMs, sessionCount, recentFrequency,
       });
     } else {
       // --- Legacy fallback ---
@@ -220,16 +291,22 @@ export function prioritizeActivities(
 
       let score = legacyScore(activity, timeSinceLastMs, sessionCount);
 
-      const hasPreferred = activity.hourTiers.includes("preferred");
-      if (hasPreferred && tier === "possible") {
-        score *= 0.5;
+      // Time-of-day multiplier
+      if (useHourlyCurve) {
+        score *= hourlyMultiplier;
+      } else {
+        const hasPreferred = activity.hourTiers.includes("preferred");
+        const tier = activity.hourTiers[currentHour];
+        if (hasPreferred && tier === "possible") {
+          score *= 0.5;
+        }
       }
 
       score *= energyMatchMultiplier;
 
       result.available.push({
         activity, section: "available", score,
-        lastSession, timeSinceLastMs, sessionCount,
+        lastSession, timeSinceLastMs, sessionCount, recentFrequency,
       });
     }
   }

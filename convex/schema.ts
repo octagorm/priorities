@@ -29,6 +29,10 @@ export default defineSchema({
         v.literal("impossible")
       )
     ),
+    hourlyPriorityCurve: v.optional(v.array(v.object({
+      hour: v.number(),
+      multiplier: v.number(),
+    }))),
     isActive: v.boolean(),
     isTemporary: v.boolean(),
     pausedUntil: v.optional(v.number()),
