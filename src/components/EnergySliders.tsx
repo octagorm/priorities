@@ -22,21 +22,21 @@ function EnergyButtons({
   activeBorder: string;
 }) {
   return (
-    <div className="flex gap-1.5">
+    <div className="flex gap-2">
       {Array.from({ length: MAX_ENERGY }, (_, i) => i + 1).map((level) => {
         const isActive = level <= value;
         return (
           <button
             key={level}
             onClick={() => onChange(level === value ? level - 1 : level)}
-            className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors ${
+            className={`w-12 h-12 rounded-full border-2 flex items-center justify-center transition-colors ${
               isActive
                 ? `${activeColor} ${activeBorder}`
                 : "bg-base-850 border-base-700"
             }`}
           >
             <Icon
-              size={16}
+              size={20}
               className={isActive ? "text-base-200" : "text-base-600"}
             />
           </button>
@@ -53,7 +53,7 @@ export function EnergySliders({
   onPhysicalChange,
 }: EnergySlidersProps) {
   return (
-    <div className="flex items-center gap-6 py-3">
+    <div className="flex items-center gap-8 py-3">
       <EnergyButtons
         icon={PhysicalIcon}
         value={physicalEnergy}
