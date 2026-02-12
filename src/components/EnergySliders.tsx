@@ -29,7 +29,7 @@ function EnergyButtons({
           <button
             key={level}
             onClick={() => onChange(level === value ? level - 1 : level)}
-            className={`w-12 h-12 rounded-full border-2 flex items-center justify-center transition-colors ${
+            className={`w-12 h-12 rounded-full border-1 flex items-center justify-center transition-colors ${
               isActive
                 ? `${activeColor} ${activeBorder}`
                 : "bg-base-850 border-base-700"
@@ -37,6 +37,7 @@ function EnergyButtons({
           >
             <Icon
               size={20}
+              strokeWidth={1.5}
               className={isActive ? "text-base-200" : "text-base-600"}
             />
           </button>
