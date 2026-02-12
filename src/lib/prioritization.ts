@@ -87,50 +87,63 @@ function legacyCooldown(activity: Activity, timeSinceLastMs: number | null): num
 
 // --- Recency-biased frequency ---
 
-function computeRecentFrequency(sessions: Session[], now: number): string {
-  if (sessions.length === 0) return "Never done";
-
-  // Exponentially weighted count over a 30-day window.
-  // Half-life of ~10 days: recent sessions count much more.
-  const HALF_LIFE_MS = 10 * 24 * 3600_000;
-  const DECAY = Math.LN2 / HALF_LIFE_MS;
-  const WINDOW_MS = 30 * 24 * 3600_000;
-
-  let weightedCount = 0;
-  let totalWeight = 0;
-
-  // Integrate weight across the window for normalization
-  // Sum of weights for 30 days: integral of e^(-lambda*t) from 0 to T = (1 - e^(-lambda*T)) / lambda
-  const windowWeightIntegral = (1 - Math.exp(-DECAY * WINDOW_MS)) / DECAY;
-
-  for (const s of sessions) {
-    const age = now - s.startedAt;
-    if (age > WINDOW_MS) continue;
-    const weight = Math.exp(-DECAY * age);
-    weightedCount += weight;
-    totalWeight += weight;
+function formatRate(perWeek: number): string {
+  const perDay = perWeek / 7;
+  if (perDay >= 1.5) {
+    return `${Math.round(perDay)}/day`;
   }
-
-  if (totalWeight === 0) return "Never done";
-
-  // Convert weighted count to a per-week rate.
-  // Normalize by the integral to get a density, then scale to per-week.
-  const WEEK_MS = 7 * 24 * 3600_000;
-  const perWeek = (weightedCount / windowWeightIntegral) * WEEK_MS;
-
-  if (perWeek >= 6.5) {
-    const perDay = perWeek / 7;
-    return `~${perDay.toFixed(1)}/day`;
+  if (perWeek >= 1.5) {
+    return `${Math.round(perWeek)}/week`;
   }
-  if (perWeek >= 0.95) {
-    return `~${perWeek.toFixed(1)}/week`;
-  }
-  // Less than ~1/week: show per month
   const perMonth = perWeek * (30 / 7);
-  if (perMonth >= 0.95) {
-    return `~${perMonth.toFixed(1)}/month`;
+  if (perMonth >= 1.5) {
+    return `${Math.round(perMonth)}/month`;
+  }
+  const perYear = perWeek * (365 / 7);
+  if (perYear >= 1.5) {
+    return `${Math.round(perYear)}/year`;
   }
   return "Rarely";
+}
+
+function computeRecentFrequency(sessions: Session[], now: number): string {
+  if (sessions.length === 0) return "Never done";
+  if (sessions.length === 1) return "Need more data";
+
+  // With exactly 2 sessions, use the simple interval between them
+  if (sessions.length === 2) {
+    const intervalMs = Math.abs(sessions[0].startedAt - sessions[1].startedAt);
+    if (intervalMs === 0) return "Need more data";
+    const WEEK_MS = 7 * 24 * 3600_000;
+    const perWeek = WEEK_MS / intervalMs;
+    return formatRate(perWeek);
+  }
+
+  // 3+ sessions: recency-biased average of intervals
+  // Sort newest first (should already be, but ensure)
+  const sorted = [...sessions].sort((a, b) => b.startedAt - a.startedAt);
+
+  const HALF_LIFE_MS = 10 * 24 * 3600_000;
+  const DECAY = Math.LN2 / HALF_LIFE_MS;
+
+  let weightedIntervalSum = 0;
+  let weightSum = 0;
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const intervalMs = sorted[i].startedAt - sorted[i + 1].startedAt;
+    const age = now - sorted[i].startedAt;
+    const weight = Math.exp(-DECAY * age);
+    weightedIntervalSum += intervalMs * weight;
+    weightSum += weight;
+  }
+
+  if (weightSum === 0 || weightedIntervalSum === 0) return "Need more data";
+
+  const avgIntervalMs = weightedIntervalSum / weightSum;
+  const WEEK_MS = 7 * 24 * 3600_000;
+  const perWeek = WEEK_MS / avgIntervalMs;
+
+  return formatRate(perWeek);
 }
 
 // --- Curve-based scoring ---

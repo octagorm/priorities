@@ -38,6 +38,13 @@ export default defineSchema({
     pausedUntil: v.optional(v.number()),
     notes: v.string(),
     createdAt: v.number(),
+    timerSettings: v.optional(v.object({
+      type: v.union(v.literal("pomodoro"), v.literal("meditation")),
+      workMinutes: v.optional(v.number()),
+      breakMinutes: v.optional(v.number()),
+      durationMinutes: v.optional(v.number()),
+      gongIntervalMinutes: v.optional(v.number()),
+    })),
   }),
 
   sessions: defineTable({
@@ -46,6 +53,7 @@ export default defineSchema({
     note: v.optional(v.string()),
     mentalEnergyCostAtTime: v.number(),
     physicalEnergyCostAtTime: v.number(),
+    durationMs: v.optional(v.number()),
   })
     .index("by_activity", ["activityId"])
     .index("by_started_at", ["startedAt"]),

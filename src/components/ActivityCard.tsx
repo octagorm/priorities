@@ -2,6 +2,7 @@ import { useMutation } from "convex/react";
 import { Link } from "@tanstack/react-router";
 import { api } from "../../convex/_generated/api";
 import type { PrioritizedActivity } from "../lib/prioritization";
+import type { Doc } from "../../convex/_generated/dataModel";
 import {
   CATEGORY_ICONS,
   formatTimeRemaining,
@@ -12,12 +13,14 @@ interface ActivityCardProps {
   item: PrioritizedActivity;
   mentalEnergy: number;
   physicalEnergy: number;
+  onDo?: (activity: Doc<"activities">) => void;
 }
 
 export function ActivityCard({
   item,
   mentalEnergy,
   physicalEnergy,
+  onDo,
 }: ActivityCardProps) {
   const logSession = useMutation(api.sessions.log);
   const { activity, section, cooldownRemainingMs, recentFrequency } = item;
@@ -29,6 +32,7 @@ export function ActivityCard({
       mentalEnergyCostAtTime: mentalEnergy,
       physicalEnergyCostAtTime: physicalEnergy,
     });
+    onDo?.(activity);
   };
 
   const isAvailable = section === "available";

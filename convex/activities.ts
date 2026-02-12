@@ -158,6 +158,13 @@ export const create = mutation({
     }))),
     isTemporary: v.boolean(),
     notes: v.string(),
+    timerSettings: v.optional(v.object({
+      type: v.union(v.literal("pomodoro"), v.literal("meditation")),
+      workMinutes: v.optional(v.number()),
+      breakMinutes: v.optional(v.number()),
+      durationMinutes: v.optional(v.number()),
+      gongIntervalMinutes: v.optional(v.number()),
+    })),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("activities", {
@@ -208,6 +215,13 @@ export const update = mutation({
     }))),
     isTemporary: v.optional(v.boolean()),
     notes: v.optional(v.string()),
+    timerSettings: v.optional(v.object({
+      type: v.union(v.literal("pomodoro"), v.literal("meditation")),
+      workMinutes: v.optional(v.number()),
+      breakMinutes: v.optional(v.number()),
+      durationMinutes: v.optional(v.number()),
+      gongIntervalMinutes: v.optional(v.number()),
+    })),
   },
   handler: async (ctx, { id, ...fields }) => {
     // Filter out undefined values

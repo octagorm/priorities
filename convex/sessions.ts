@@ -7,6 +7,7 @@ export const log = mutation({
     note: v.optional(v.string()),
     mentalEnergyCostAtTime: v.number(),
     physicalEnergyCostAtTime: v.number(),
+    durationMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("sessions", {
@@ -40,5 +41,16 @@ export const listRecent = query({
       .withIndex("by_started_at")
       .order("desc")
       .take(100);
+  },
+});
+
+export const listByActivity = query({
+  args: { activityId: v.id("activities") },
+  handler: async (ctx, { activityId }) => {
+    return await ctx.db
+      .query("sessions")
+      .withIndex("by_activity", (q) => q.eq("activityId", activityId))
+      .order("desc")
+      .take(20);
   },
 });

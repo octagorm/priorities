@@ -3,7 +3,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { CATEGORIES, CATEGORY_ICONS, MAX_ENERGY, MentalIcon, PhysicalIcon } from "../../lib/constants";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { CATEGORIES, CATEGORY_ICONS, MAX_ENERGY, MentalIcon, PhysicalIcon, formatDuration } from "../../lib/constants";
 import PriorityCurveEditor, {
   type CurvePoint,
 } from "../../components/PriorityCurveEditor";
@@ -33,6 +34,10 @@ function ActivityEditor() {
   const pauseActivity = useMutation(api.activities.pause);
   const unpauseActivity = useMutation(api.activities.unpause);
   const logEnergyCostChange = useMutation(api.energyCostChanges.log);
+  const sessionHistory = useQuery(
+    api.sessions.listByActivity,
+    isNew ? "skip" : { activityId: activityId as Id<"activities"> }
+  );
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Skills");
@@ -42,6 +47,12 @@ function ActivityEditor() {
   const [hourlyPoints, setHourlyPoints] = useState<HourlyPoint[]>([...DEFAULT_HOURLY_CURVE]);
   const [hourlyEnabled, setHourlyEnabled] = useState(false);
   const [notes, setNotes] = useState("");
+  const [timerType, setTimerType] = useState<"none" | "pomodoro" | "meditation">("none");
+  const [workMinutes, setWorkMinutes] = useState(25);
+  const [breakMinutes, setBreakMinutes] = useState(5);
+  const [meditationMinutes, setMeditationMinutes] = useState(15);
+  const [gongInterval, setGongInterval] = useState(10);
+  const [showSessionHistory, setShowSessionHistory] = useState(false);
   const [showPauseDialog, setShowPauseDialog] = useState(false);
   const [pauseWeeks, setPauseWeeks] = useState(1);
   const [initialized, setInitialized] = useState(false);
@@ -57,6 +68,15 @@ function ActivityEditor() {
         setPriorityCurve(activity.priorityCurve as CurvePoint[]);
       }
       setNotes(activity.notes);
+      if (activity.timerSettings) {
+        setTimerType(activity.timerSettings.type);
+        if (activity.timerSettings.workMinutes) setWorkMinutes(activity.timerSettings.workMinutes);
+        if (activity.timerSettings.breakMinutes) setBreakMinutes(activity.timerSettings.breakMinutes);
+        if (activity.timerSettings.durationMinutes) setMeditationMinutes(activity.timerSettings.durationMinutes);
+        if (activity.timerSettings.gongIntervalMinutes) setGongInterval(activity.timerSettings.gongIntervalMinutes);
+      } else {
+        setTimerType("none");
+      }
       if (activity.hourlyPriorityCurve && (activity.hourlyPriorityCurve as HourlyPoint[]).length >= 2) {
         setHourlyPoints(activity.hourlyPriorityCurve as HourlyPoint[]);
         setHourlyEnabled(true);
@@ -83,6 +103,9 @@ function ActivityEditor() {
           newPhysicalCost: physicalCost,
         });
       }
+      const timerSettings = timerType === "none" ? undefined
+        : timerType === "pomodoro" ? { type: "pomodoro" as const, workMinutes, breakMinutes }
+        : { type: "meditation" as const, durationMinutes: meditationMinutes, gongIntervalMinutes: gongInterval };
       await updateActivity({
         id: activity._id,
         name,
@@ -92,9 +115,10 @@ function ActivityEditor() {
         priorityCurve,
         hourlyPriorityCurve: hourlyEnabled ? hourlyPoints : undefined,
         notes,
+        timerSettings,
       });
     }, 500);
-  }, [isNew, initialized, activity, name, category, mentalCost, physicalCost, priorityCurve, hourlyEnabled, hourlyPoints, notes, updateActivity, logEnergyCostChange]);
+  }, [isNew, initialized, activity, name, category, mentalCost, physicalCost, priorityCurve, hourlyEnabled, hourlyPoints, notes, timerType, workMinutes, breakMinutes, meditationMinutes, gongInterval, updateActivity, logEnergyCostChange]);
 
   // Auto-save on any field change (for existing activities)
   useEffect(() => {
@@ -104,7 +128,7 @@ function ActivityEditor() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [name, category, mentalCost, physicalCost, priorityCurve, hourlyEnabled, hourlyPoints, notes, autoSave, isNew, initialized]);
+  }, [name, category, mentalCost, physicalCost, priorityCurve, hourlyEnabled, hourlyPoints, notes, timerType, workMinutes, breakMinutes, meditationMinutes, gongInterval, autoSave, isNew, initialized]);
 
   if (!isNew && activity === undefined) {
     return <div className="pt-8 text-base-400 text-center">Loading...</div>;
@@ -116,6 +140,9 @@ function ActivityEditor() {
   const isPaused = activity?.pausedUntil && activity.pausedUntil > Date.now();
 
   const handleCreate = async () => {
+    const timerSettings = timerType === "none" ? undefined
+      : timerType === "pomodoro" ? { type: "pomodoro" as const, workMinutes, breakMinutes }
+      : { type: "meditation" as const, durationMinutes: meditationMinutes, gongIntervalMinutes: gongInterval };
     await createActivity({
       name,
       category,
@@ -126,6 +153,7 @@ function ActivityEditor() {
       hourlyPriorityCurve: hourlyEnabled ? hourlyPoints : undefined,
       isTemporary: false,
       notes,
+      timerSettings,
     });
     navigate({ to: "/" });
   };
@@ -258,6 +286,112 @@ function ActivityEditor() {
             placeholder="Optional notes..."
           />
         </Field>
+
+        {/* Timer settings */}
+        <Field label="Timer">
+          <select
+            value={timerType}
+            onChange={(e) => setTimerType(e.target.value as "none" | "pomodoro" | "meditation")}
+            className="w-full bg-base-900 text-base-100 rounded-lg px-3 py-2 border border-base-700 focus:border-accent focus:outline-none"
+          >
+            <option value="none">None</option>
+            <option value="pomodoro">Pomodoro</option>
+            <option value="meditation">Meditation</option>
+          </select>
+          {timerType === "pomodoro" && (
+            <div className="flex gap-3 mt-2">
+              <div className="flex-1">
+                <label className="text-xs text-base-500 mb-1 block">Work (min)</label>
+                <input
+                  type="number"
+                  value={workMinutes}
+                  onChange={(e) => setWorkMinutes(Number(e.target.value))}
+                  min={1}
+                  max={120}
+                  className="w-full bg-base-900 text-base-100 rounded-lg px-3 py-1.5 border border-base-700 focus:border-accent focus:outline-none text-sm"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-base-500 mb-1 block">Break (min)</label>
+                <input
+                  type="number"
+                  value={breakMinutes}
+                  onChange={(e) => setBreakMinutes(Number(e.target.value))}
+                  min={1}
+                  max={60}
+                  className="w-full bg-base-900 text-base-100 rounded-lg px-3 py-1.5 border border-base-700 focus:border-accent focus:outline-none text-sm"
+                />
+              </div>
+            </div>
+          )}
+          {timerType === "meditation" && (
+            <div className="flex gap-3 mt-2">
+              <div className="flex-1">
+                <label className="text-xs text-base-500 mb-1 block">Duration (min)</label>
+                <input
+                  type="number"
+                  value={meditationMinutes}
+                  onChange={(e) => setMeditationMinutes(Number(e.target.value))}
+                  min={1}
+                  max={120}
+                  className="w-full bg-base-900 text-base-100 rounded-lg px-3 py-1.5 border border-base-700 focus:border-accent focus:outline-none text-sm"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-base-500 mb-1 block">Gong every (min)</label>
+                <input
+                  type="number"
+                  value={gongInterval}
+                  onChange={(e) => setGongInterval(Number(e.target.value))}
+                  min={1}
+                  max={60}
+                  className="w-full bg-base-900 text-base-100 rounded-lg px-3 py-1.5 border border-base-700 focus:border-accent focus:outline-none text-sm"
+                />
+              </div>
+            </div>
+          )}
+        </Field>
+
+        {/* Session history */}
+        {!isNew && sessionHistory && sessionHistory.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowSessionHistory(!showSessionHistory)}
+              className="flex items-center gap-1 text-xs uppercase tracking-wider text-base-500 mb-1.5"
+            >
+              Sessions ({sessionHistory.length})
+              {showSessionHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {showSessionHistory && (
+              <div className="space-y-1">
+                {sessionHistory.map((s) => (
+                  <div
+                    key={s._id}
+                    className="flex items-center gap-2 bg-base-900 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <span className="text-base-400 flex-1">
+                      {new Date(s.startedAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                    <span className="text-base-600 text-xs">
+                      {new Date(s.startedAt).toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    {s.durationMs && (
+                      <span className="text-accent/70 text-xs">
+                        {formatDuration(s.durationMs)}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Pause / Unpause / Archive */}
         {!isNew && (

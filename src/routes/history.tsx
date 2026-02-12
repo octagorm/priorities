@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { CATEGORY_ICONS } from "../lib/constants";
+import { CATEGORY_ICONS, formatDuration } from "../lib/constants";
 import { useState } from "react";
 
 export const Route = createFileRoute("/history")({
@@ -88,6 +88,11 @@ function SessionHistory({ onShowArchived }: { onShowArchived: () => void }) {
                   {session.note && (
                     <span className="text-base-500 text-xs truncate max-w-[120px]">
                       {session.note}
+                    </span>
+                  )}
+                  {session.durationMs && (
+                    <span className="text-accent/70 text-xs shrink-0">
+                      {formatDuration(session.durationMs)}
                     </span>
                   )}
                   <span className="text-base-600 text-xs shrink-0">{time}</span>

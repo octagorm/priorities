@@ -1,12 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useState, useEffect, useRef } from "react";
+import type { Doc } from "../../convex/_generated/dataModel";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Search, X } from "lucide-react";
 import { EnergySliders } from "../components/EnergySliders";
 import { ActivityCard } from "../components/ActivityCard";
+import { TimerScreen } from "../components/TimerScreen";
+import { MinimizedTimer } from "../components/MinimizedTimer";
 import { prioritizeActivities } from "../lib/prioritization";
 import { CATEGORY_ICONS, formatTimeRemaining } from "../lib/constants";
+import { useTimer } from "../lib/useTimer";
+import { playSound } from "../lib/audio";
 
 export const Route = createFileRoute("/")({
   component: MainScreen,
@@ -16,6 +21,7 @@ function MainScreen() {
   const activities = useQuery(api.activities.list);
   const sessions = useQuery(api.sessions.listRecent);
   const seed = useMutation(api.activities.seedDefaultActivities);
+  const logSession = useMutation(api.sessions.log);
 
   const [mentalEnergy, setMentalEnergy] = useState(() => {
     const saved = localStorage.getItem("mentalEnergy");
@@ -32,6 +38,88 @@ function MainScreen() {
   const [showMore, setShowMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // Simple doing state (no timer)
+  const [doingActivity, setDoingActivity] = useState<string | null>(null);
+  const doingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Timer state
+  const [timerActivity, setTimerActivity] = useState<Doc<"activities"> | null>(null);
+  const [timerMinimized, setTimerMinimized] = useState(false);
+
+  const timerActivityRef = useRef(timerActivity);
+  timerActivityRef.current = timerActivity;
+  const mentalEnergyRef = useRef(mentalEnergy);
+  mentalEnergyRef.current = mentalEnergy;
+  const physicalEnergyRef = useRef(physicalEnergy);
+  physicalEnergyRef.current = physicalEnergy;
+  const totalElapsedRef = useRef(0);
+
+  const handleTimerComplete = useCallback(() => {
+    const act = timerActivityRef.current;
+    if (!act) return;
+    logSession({
+      activityId: act._id,
+      mentalEnergyCostAtTime: mentalEnergyRef.current,
+      physicalEnergyCostAtTime: physicalEnergyRef.current,
+      durationMs: totalElapsedRef.current,
+    });
+    setTimerActivity(null);
+    setTimerMinimized(false);
+  }, [logSession]);
+
+  const handleGong = useCallback(() => {
+    const act = timerActivityRef.current;
+    if (act?.timerSettings?.type === "meditation") {
+      playSound("gong.mp3");
+    } else {
+      playSound("bell.mp3");
+    }
+  }, []);
+
+  const handlePhaseChange = useCallback(() => {}, []);
+
+  const timer = useTimer({
+    onComplete: handleTimerComplete,
+    onGong: handleGong,
+    onPhaseChange: handlePhaseChange,
+  });
+  totalElapsedRef.current = timer.totalElapsedMs;
+
+  const handleDo = (activity: Doc<"activities">) => {
+    if (activity.timerSettings) {
+      setTimerActivity(activity);
+      setTimerMinimized(false);
+      timer.start(activity.timerSettings);
+    } else {
+      if (doingTimerRef.current) clearTimeout(doingTimerRef.current);
+      setDoingActivity(activity.name);
+      doingTimerRef.current = setTimeout(() => {
+        setDoingActivity(null);
+      }, 5 * 60_000);
+    }
+  };
+
+  const handleDoneDoing = () => {
+    if (doingTimerRef.current) clearTimeout(doingTimerRef.current);
+    setDoingActivity(null);
+  };
+
+  const handleTimerStop = () => {
+    // For meditation (infinite timer), stopping is how you finish — log the session
+    const act = timerActivityRef.current;
+    if (act?.timerSettings?.type === "meditation" && totalElapsedRef.current > 0) {
+      logSession({
+        activityId: act._id,
+        mentalEnergyCostAtTime: mentalEnergyRef.current,
+        physicalEnergyCostAtTime: physicalEnergyRef.current,
+        durationMs: totalElapsedRef.current,
+      });
+    }
+    timer.stop();
+    setTimerActivity(null);
+    setTimerMinimized(false);
+  };
 
   // Seed on first load
   useEffect(() => {
@@ -75,6 +163,52 @@ function MainScreen() {
   const searchResults = query
     ? activities.filter((a) => a.name.toLowerCase().includes(query))
     : [];
+
+  // Full-screen timer
+  if (timerActivity && timer.isRunning && !timerMinimized) {
+    return (
+      <div className="pt-4">
+        <TimerScreen
+          activityName={timerActivity.name}
+          remainingMs={timer.remainingMs}
+          totalElapsedMs={timer.totalElapsedMs}
+          phase={timer.phase}
+          isPaused={timer.isPaused}
+          onPause={timer.pause}
+          onResume={timer.resume}
+          onMinimize={() => setTimerMinimized(true)}
+          onStop={handleTimerStop}
+        />
+        <div className="h-20" />
+        <div className="fixed bottom-0 left-0 right-0 bg-base-950/90 backdrop-blur border-t border-base-800 px-4 py-3 flex justify-center max-w-lg mx-auto">
+          <EnergySliders
+            mentalEnergy={mentalEnergy}
+            physicalEnergy={physicalEnergy}
+            onMentalChange={setMentalEnergy}
+            onPhysicalChange={setPhysicalEnergy}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Simple doing screen (no timer)
+  if (doingActivity) {
+    return (
+      <div className="pt-4">
+        <DoingScreen activityName={doingActivity} onDone={handleDoneDoing} />
+        <div className="h-20" />
+        <div className="fixed bottom-0 left-0 right-0 bg-base-950/90 backdrop-blur border-t border-base-800 px-4 py-3 flex justify-center max-w-lg mx-auto">
+          <EnergySliders
+            mentalEnergy={mentalEnergy}
+            physicalEnergy={physicalEnergy}
+            onMentalChange={setMentalEnergy}
+            onPhysicalChange={setPhysicalEnergy}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pt-4">
@@ -143,6 +277,7 @@ function MainScreen() {
               item={item}
               mentalEnergy={mentalEnergy}
               physicalEnergy={physicalEnergy}
+              onDo={handleDo}
             />
           ))}
           {(prioritized.available.length > 3 || prioritized.too_tired.length > 0) && (
@@ -198,6 +333,7 @@ function MainScreen() {
               item={item}
               mentalEnergy={mentalEnergy}
               physicalEnergy={physicalEnergy}
+              onDo={handleDo}
             />
           ))}
         </Section>
@@ -211,6 +347,7 @@ function MainScreen() {
               item={item}
               mentalEnergy={mentalEnergy}
               physicalEnergy={physicalEnergy}
+              onDo={handleDo}
             />
           ))}
         </Section>
@@ -240,14 +377,41 @@ function MainScreen() {
 
       <div className="h-20" /> {/* spacer for fixed bottom bar */}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-base-950/90 backdrop-blur border-t border-base-800 px-4 py-3 flex justify-center max-w-lg mx-auto">
-        <EnergySliders
-          mentalEnergy={mentalEnergy}
-          physicalEnergy={physicalEnergy}
-          onMentalChange={setMentalEnergy}
-          onPhysicalChange={setPhysicalEnergy}
-        />
+      <div className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto">
+        {timerActivity && timer.isRunning && timerMinimized && (
+          <MinimizedTimer
+            activityName={timerActivity.name}
+            remainingMs={timer.remainingMs}
+            totalElapsedMs={timer.totalElapsedMs}
+            phase={timer.phase}
+            isPaused={timer.isPaused}
+            onMaximize={() => setTimerMinimized(false)}
+          />
+        )}
+        <div className="bg-base-950/90 backdrop-blur border-t border-base-800 px-4 py-3 flex justify-center">
+          <EnergySliders
+            mentalEnergy={mentalEnergy}
+            physicalEnergy={physicalEnergy}
+            onMentalChange={setMentalEnergy}
+            onPhysicalChange={setPhysicalEnergy}
+          />
+        </div>
       </div>
+    </div>
+  );
+}
+
+function DoingScreen({ activityName, onDone }: { activityName: string; onDone: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+      <p className="text-base-500 text-sm uppercase tracking-wider mb-3">Doing</p>
+      <h2 className="text-2xl font-semibold text-base-50 mb-10">{activityName}</h2>
+      <button
+        onClick={onDone}
+        className="bg-base-850 border border-base-700 text-base-200 text-base font-medium px-8 py-3 rounded-xl hover:bg-base-800 transition-colors"
+      >
+        Done
+      </button>
     </div>
   );
 }

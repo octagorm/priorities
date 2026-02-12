@@ -54,3 +54,18 @@ export function energyDots(cost: number): string {
   const clamped = Math.min(cost, MAX_ENERGY);
   return "\u{25CF}".repeat(clamped) + "\u{25CB}".repeat(MAX_ENERGY - clamped);
 }
+
+export function formatDuration(ms: number): string {
+  const totalMinutes = Math.round(ms / 60_000);
+  if (totalMinutes < 60) return `${totalMinutes}m`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+}
+
+export function formatTimerDisplay(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
