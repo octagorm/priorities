@@ -244,7 +244,7 @@ export function prioritizeActivities(
             activity, section: "cooldown", score: 0,
             lastSession, timeSinceLastMs,
             cooldownRemainingMs: cooldown.remainingMs,
-            sessionCount,
+            sessionCount, recentFrequency,
           });
           continue;
         }
@@ -284,7 +284,7 @@ export function prioritizeActivities(
           activity, section: "cooldown", score: 0,
           lastSession, timeSinceLastMs,
           cooldownRemainingMs: cooldownRemaining,
-          sessionCount,
+          sessionCount, recentFrequency,
         });
         continue;
       }
