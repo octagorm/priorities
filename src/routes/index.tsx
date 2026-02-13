@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, X, Shell, Apple } from "lucide-react";
+import { Search, X, Shell, Apple, List } from "lucide-react";
 import { EnergySliders } from "../components/EnergySliders";
 import { ActivityCard } from "../components/ActivityCard";
 import { TimerScreen } from "../components/TimerScreen";
@@ -14,10 +14,14 @@ import { useTimer } from "../lib/useTimer";
 import { playSound } from "../lib/audio";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: (search.q as string) ?? "",
+  }),
   component: MainScreen,
 });
 
 function MainScreen() {
+  const { q } = Route.useSearch();
   const activities = useQuery(api.activities.list);
   const sessions = useQuery(api.sessions.listRecent);
   const seed = useMutation(api.activities.seedDefaultActivities);
@@ -36,7 +40,7 @@ function MainScreen() {
   useEffect(() => { localStorage.setItem("physicalEnergy", String(physicalEnergy)); }, [physicalEnergy]);
   const [currentHour, setCurrentHour] = useState(new Date().getHours());
   const [showMore, setShowMore] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(q);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Simple doing state (no timer)
@@ -234,24 +238,33 @@ function MainScreen() {
   return (
     <div className="pt-4">
       {/* Search bar */}
-      <div className="relative mb-2">
-        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-500" />
-        <input
-          ref={searchRef}
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search activities..."
-          className="w-full bg-base-900 text-base-100 rounded-xl pl-10 pr-9 py-2.5 border border-base-700 focus:border-accent focus:outline-none text-sm placeholder:text-base-600"
-        />
-        {searchQuery && (
-          <button
-            onClick={() => { setSearchQuery(""); searchRef.current?.focus(); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-base-500 hover:text-base-300"
-          >
-            <X size={16} />
-          </button>
-        )}
+      <div className="flex items-center gap-2 mb-2">
+        <Link
+          to="/list"
+          search={{ q: searchQuery }}
+          className="text-base-500 hover:text-base-300 transition-colors shrink-0"
+        >
+          <List size={22} />
+        </Link>
+        <div className="relative flex-1">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-500" />
+          <input
+            ref={searchRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search activities..."
+            className="w-full bg-base-900 text-base-100 rounded-xl pl-10 pr-9 py-2.5 border border-base-700 focus:border-accent focus:outline-none text-sm placeholder:text-base-600"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => { setSearchQuery(""); searchRef.current?.focus(); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-base-500 hover:text-base-300"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search results */}
@@ -309,10 +322,7 @@ function MainScreen() {
               >
                 {showMore
                   ? "Show less"
-                  : [
-                      moreCount > 0 ? `${moreCount} more` : null,
-                      beyondCount > 0 ? `${beyondCount} beyond` : null,
-                    ].filter(Boolean).join(" + ")}
+                  : `${moreCount + beyondCount} more`}
               </button>
               {showMore && (
                 <>
