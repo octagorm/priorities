@@ -156,7 +156,7 @@ function ActivityEditor() {
       notes,
       timerSettings,
     });
-    navigate({ to: "/" });
+    navigate({ to: "/", search: { q: "" } });
   };
 
   const handlePause = async () => {
@@ -165,7 +165,7 @@ function ActivityEditor() {
       weeks: pauseWeeks,
     });
     setShowPauseDialog(false);
-    navigate({ to: "/" });
+    navigate({ to: "/", search: { q: "" } });
   };
 
   const handleUnpause = async () => {
@@ -175,7 +175,7 @@ function ActivityEditor() {
   const handleArchive = async () => {
     if (!isNew) {
       await archiveActivity({ id: activityId as Id<"activities"> });
-      navigate({ to: "/" });
+      navigate({ to: "/", search: { q: "" } });
     }
   };
 
@@ -183,7 +183,7 @@ function ActivityEditor() {
     <div className="pt-4 pb-8">
       <div className="flex items-center justify-between mb-6">
         <button
-          onClick={() => navigate({ to: "/" })}
+          onClick={() => navigate({ to: "/", search: { q: "" } })}
           className="text-base-400 text-sm"
         >
           Back

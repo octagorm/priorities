@@ -45,7 +45,6 @@ function MainScreen() {
 
   // Simple doing state (no timer)
   const [doingActivity, setDoingActivity] = useState<string | null>(null);
-  const doingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Timer state
   const [timerActivity, setTimerActivity] = useState<Doc<"activities"> | null>(null);
@@ -98,19 +97,31 @@ function MainScreen() {
 
   const [doingActivityFull, setDoingActivityFull] = useState<Doc<"activities"> | null>(null);
 
+  const handleMarkDone = useCallback(() => {
+    const act = doingActivityFull;
+    if (act) {
+      logSession({
+        activityId: act._id,
+        mentalEnergyCostAtTime: mentalEnergyRef.current,
+        physicalEnergyCostAtTime: physicalEnergyRef.current,
+      });
+    }
+    setDoingActivity(null);
+    setDoingActivityFull(null);
+  }, [doingActivityFull, logSession]);
+
+  const handleCancelDoing = () => {
+    setDoingActivity(null);
+    setDoingActivityFull(null);
+  };
+
   const handleDo = (activity: Doc<"activities">) => {
-    if (doingTimerRef.current) clearTimeout(doingTimerRef.current);
     setDoingActivity(activity.name);
     setDoingActivityFull(activity);
-    doingTimerRef.current = setTimeout(() => {
-      setDoingActivity(null);
-      setDoingActivityFull(null);
-    }, 5 * 60_000);
   };
 
   const handleStartTimer = () => {
     if (!doingActivityFull?.timerSettings) return;
-    if (doingTimerRef.current) clearTimeout(doingTimerRef.current);
     setDoingActivity(null);
     setTimerActivity(doingActivityFull);
     setDoingActivityFull(null);
@@ -118,11 +129,16 @@ function MainScreen() {
     timer.start(doingActivityFull.timerSettings);
   };
 
-  const handleDoneDoing = () => {
-    if (doingTimerRef.current) clearTimeout(doingTimerRef.current);
-    setDoingActivity(null);
-    setDoingActivityFull(null);
-  };
+  // Auto-mark-done after 2 minutes for non-timer doing screen
+  const handleMarkDoneRef = useRef(handleMarkDone);
+  handleMarkDoneRef.current = handleMarkDone;
+  useEffect(() => {
+    if (!doingActivity) return;
+    const timeout = setTimeout(() => {
+      handleMarkDoneRef.current();
+    }, 2 * 60_000);
+    return () => clearTimeout(timeout);
+  }, [doingActivity]);
 
   const handleTimerStop = () => {
     // Both timers are infinite — stopping is how you finish, so log the session
@@ -219,7 +235,8 @@ function MainScreen() {
         <DoingScreen
           activityName={doingActivity}
           timerSettings={doingActivityFull?.timerSettings}
-          onDone={handleDoneDoing}
+          onMarkDone={handleMarkDone}
+          onCancel={handleCancelDoing}
           onStartTimer={handleStartTimer}
         />
         <div className="h-20" />
@@ -431,12 +448,14 @@ function MainScreen() {
 function DoingScreen({
   activityName,
   timerSettings,
-  onDone,
+  onMarkDone,
+  onCancel,
   onStartTimer,
 }: {
   activityName: string;
   timerSettings?: { type: "pomodoro" | "meditation" } | undefined;
-  onDone: () => void;
+  onMarkDone: () => void;
+  onCancel: () => void;
   onStartTimer: () => void;
 }) {
   const TimerIcon = timerSettings?.type === "meditation" ? Shell : Apple;
@@ -455,10 +474,16 @@ function DoingScreen({
           </button>
         )}
         <button
-          onClick={onDone}
-          className="text-base-500 text-base hover:text-base-300 transition-colors mt-4 px-6 py-2"
+          onClick={onMarkDone}
+          className="border border-green-500/30 bg-green-500/10 text-green-400 text-base font-medium px-8 py-3 rounded-xl hover:bg-green-500/20 transition-colors"
         >
-          Dismiss
+          Mark as done
+        </button>
+        <button
+          onClick={onCancel}
+          className="text-base-500 text-sm hover:text-base-300 transition-colors px-6 py-1"
+        >
+          Cancel
         </button>
       </div>
     </div>
