@@ -58,8 +58,9 @@ function ActivityEditor() {
   const [initialized, setInitialized] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Only initialize local state once when data first loads
   useEffect(() => {
-    if (activity) {
+    if (activity && !initialized) {
       setName(activity.name);
       setCategory(activity.category);
       setMentalCost(activity.mentalEnergyCost);
@@ -85,7 +86,7 @@ function ActivityEditor() {
       }
       setInitialized(true);
     }
-  }, [activity]);
+  }, [activity, initialized]);
 
   const autoSave = useCallback(() => {
     if (isNew || !initialized || !activity) return;
