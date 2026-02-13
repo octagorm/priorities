@@ -17,7 +17,6 @@ export default defineSchema({
       timesPerPeriod: v.optional(v.number()),
       periodDays: v.optional(v.number()),
     }),
-    cooldownHours: v.optional(v.number()),
     priorityCurve: v.optional(v.array(v.object({
       days: v.number(),
       priority: v.number(),

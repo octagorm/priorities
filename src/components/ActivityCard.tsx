@@ -5,7 +5,6 @@ import type { PrioritizedActivity } from "../lib/prioritization";
 import type { Doc } from "../../convex/_generated/dataModel";
 import {
   CATEGORY_ICONS,
-  formatTimeRemaining,
   energyDots,
 } from "../lib/constants";
 
@@ -23,7 +22,7 @@ export function ActivityCard({
   onDo,
 }: ActivityCardProps) {
   const logSession = useMutation(api.sessions.log);
-  const { activity, section, cooldownRemainingMs, recentFrequency } = item;
+  const { activity, section, recentFrequency } = item;
   const Icon = CATEGORY_ICONS[activity.category];
 
   const handleDo = () => {
@@ -72,11 +71,9 @@ export function ActivityCard({
             </span>
             <span className="text-base-600">&middot;</span>
             <span>
-              {section === "cooldown" && cooldownRemainingMs
-                ? `in ${formatTimeRemaining(cooldownRemainingMs)}`
-                : section === "too_tired"
-                  ? needsText(activity, mentalEnergy, physicalEnergy)
-                  : recentFrequency}
+              {section === "too_tired"
+                ? needsText(activity, mentalEnergy, physicalEnergy)
+                : recentFrequency}
             </span>
           </div>
         </Link>

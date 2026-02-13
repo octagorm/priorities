@@ -172,7 +172,7 @@ function MainScreen() {
   );
 
   const moreCount = Math.max(0, prioritized.available.length - 3);
-  const beyondCount = prioritized.too_tired.length;
+  const beyondCount = prioritized.too_tired.length + prioritized.wrong_time.length + pausedActivities.length;
 
   const query = searchQuery.toLowerCase().trim();
   const searchResults = query
@@ -301,8 +301,19 @@ function MainScreen() {
               onDo={handleDo}
             />
           ))}
-          {(prioritized.available.length > 3 || prioritized.too_tired.length > 0) && (
+          {(moreCount > 0 || beyondCount > 0) && (
             <>
+              <button
+                onClick={() => setShowMore(!showMore)}
+                className="w-full text-base-400 text-sm py-3 hover:text-base-300 transition-colors"
+              >
+                {showMore
+                  ? "Show less"
+                  : [
+                      moreCount > 0 ? `${moreCount} more` : null,
+                      beyondCount > 0 ? `${beyondCount} beyond` : null,
+                    ].filter(Boolean).join(" + ")}
+              </button>
               {showMore && (
                 <>
                   {prioritized.available.slice(3).map((item) => (
@@ -329,71 +340,55 @@ function MainScreen() {
                       physicalEnergy={physicalEnergy}
                     />
                   ))}
+                  {prioritized.wrong_time.length > 0 && (
+                    <div className="mt-4 mb-2 px-1">
+                      <h3 className="text-sm uppercase tracking-wider text-base-500">
+                        Not right now
+                      </h3>
+                    </div>
+                  )}
+                  {prioritized.wrong_time.map((item) => (
+                    <ActivityCard
+                      key={item.activity._id}
+                      item={item}
+                      mentalEnergy={mentalEnergy}
+                      physicalEnergy={physicalEnergy}
+                    />
+                  ))}
+                  {pausedActivities.length > 0 && (
+                    <div className="mt-4 mb-2 px-1">
+                      <h3 className="text-sm uppercase tracking-wider text-base-500">
+                        Paused
+                      </h3>
+                    </div>
+                  )}
+                  {pausedActivities.map((a) => {
+                    const PausedIcon = CATEGORY_ICONS[a.category];
+                    return (
+                      <Link
+                        key={a._id}
+                        to="/activities/$activityId"
+                        params={{ activityId: a._id }}
+                        className="flex items-center gap-2.5 bg-base-900/50 border border-base-800/50 rounded-xl px-4 py-3 mb-3"
+                      >
+                        {PausedIcon && <PausedIcon size={18} className="text-base-600" />}
+                        <span className="text-base-400 text-base flex-1">{a.name}</span>
+                        <span className="text-base-500 text-sm">
+                          {formatTimeRemaining(a.pausedUntil! - now)}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                  <button
+                    onClick={() => setShowMore(false)}
+                    className="w-full text-base-400 text-sm py-3 hover:text-base-300 transition-colors"
+                  >
+                    Show less
+                  </button>
                 </>
               )}
-              <button
-                onClick={() => setShowMore(!showMore)}
-                className="w-full text-base-400 text-sm py-3 hover:text-base-300 transition-colors"
-              >
-                {showMore
-                  ? "Show less"
-                  : [
-                      moreCount > 0 ? `${moreCount} more` : null,
-                      beyondCount > 0 ? `${beyondCount} beyond` : null,
-                    ].filter(Boolean).join(" + ")}
-              </button>
             </>
           )}
-        </Section>
-      )}
-
-      {!query && prioritized.cooldown.length > 0 && (
-        <Section title="On cooldown">
-          {prioritized.cooldown.map((item) => (
-            <ActivityCard
-              key={item.activity._id}
-              item={item}
-              mentalEnergy={mentalEnergy}
-              physicalEnergy={physicalEnergy}
-              onDo={handleDo}
-            />
-          ))}
-        </Section>
-      )}
-
-      {!query && prioritized.wrong_time.length > 0 && (
-        <Section title="Not right now">
-          {prioritized.wrong_time.map((item) => (
-            <ActivityCard
-              key={item.activity._id}
-              item={item}
-              mentalEnergy={mentalEnergy}
-              physicalEnergy={physicalEnergy}
-              onDo={handleDo}
-            />
-          ))}
-        </Section>
-      )}
-
-      {!query && pausedActivities.length > 0 && (
-        <Section title="Paused">
-          {pausedActivities.map((a) => {
-            const PausedIcon = CATEGORY_ICONS[a.category];
-            return (
-            <Link
-              key={a._id}
-              to="/activities/$activityId"
-              params={{ activityId: a._id }}
-              className="flex items-center gap-2.5 bg-base-900/50 border border-base-800/50 rounded-xl px-4 py-3 mb-3"
-            >
-              {PausedIcon && <PausedIcon size={18} className="text-base-600" />}
-              <span className="text-base-400 text-base flex-1">{a.name}</span>
-              <span className="text-base-500 text-sm">
-                {formatTimeRemaining(a.pausedUntil! - now)}
-              </span>
-            </Link>
-            );
-          })}
         </Section>
       )}
 

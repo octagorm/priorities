@@ -11,39 +11,23 @@ type PriorityCurvePoint = { days: number; priority: number };
 
 function frequencyToCurve(
   freq: { type: string; timesPerPeriod?: number; periodDays?: number },
-  cooldownHours?: number
 ): PriorityCurvePoint[] {
-  const cooldownDays = cooldownHours ? cooldownHours / 24 : 0;
-
-  let baseCurve: PriorityCurvePoint[];
   switch (freq.type) {
     case "daily":
-      baseCurve = [{ days: 0, priority: 0 }, { days: 1, priority: 1 }];
-      break;
+      return [{ days: 0, priority: 0 }, { days: 1, priority: 1 }];
     case "weekly":
-      baseCurve = [{ days: 0, priority: 0 }, { days: 7, priority: 1 }];
-      break;
+      return [{ days: 0, priority: 0 }, { days: 7, priority: 1 }];
     case "per_period": {
       const interval = (freq.periodDays ?? 7) / (freq.timesPerPeriod ?? 1);
-      baseCurve = [
+      return [
         { days: 0, priority: 0 },
         { days: parseFloat(interval.toFixed(1)), priority: 1 },
       ];
-      break;
     }
     case "freeform":
     default:
-      baseCurve = [{ days: 0, priority: 0 }, { days: 14, priority: 0.5 }, { days: 30, priority: 1 }];
-      break;
+      return [{ days: 0, priority: 0 }, { days: 14, priority: 0.5 }, { days: 30, priority: 1 }];
   }
-
-  if (cooldownDays > 0) {
-    return baseCurve.map((p) => ({
-      days: parseFloat((p.days + cooldownDays).toFixed(1)),
-      priority: p.priority,
-    }));
-  }
-  return baseCurve;
 }
 
 const DEFAULT_ACTIVITIES = [
@@ -60,11 +44,11 @@ const DEFAULT_ACTIVITIES = [
   { name: "Talking practice (AI)", category: "Skills", mentalEnergyCost: 2, physicalEnergyCost: 0, targetFrequency: { type: "per_period" as const, timesPerPeriod: 3, periodDays: 7 }, notes: "Philosophy monologues, improv, storytelling" },
   { name: "Meditation", category: "Habits", mentalEnergyCost: 1, physicalEnergyCost: 0, targetFrequency: { type: "daily" as const }, notes: "" },
   { name: "Walking + audiobook", category: "Habits", mentalEnergyCost: 0, physicalEnergyCost: 2, targetFrequency: { type: "daily" as const }, notes: "10k steps target" },
-  { name: "Running", category: "Challenges", mentalEnergyCost: 0, physicalEnergyCost: 3, targetFrequency: { type: "per_period" as const, timesPerPeriod: 3, periodDays: 7 }, cooldownHours: 48, notes: "C25K?" },
-  { name: "Sauna", category: "Challenges", mentalEnergyCost: 0, physicalEnergyCost: 1, targetFrequency: { type: "per_period" as const, timesPerPeriod: 3, periodDays: 7 }, cooldownHours: 24, notes: "Find local options" },
-  { name: "Astronomy club", category: "Challenges", mentalEnergyCost: 1, physicalEnergyCost: 0, targetFrequency: { type: "freeform" as const }, cooldownHours: 168, notes: "Research local clubs" },
+  { name: "Running", category: "Challenges", mentalEnergyCost: 0, physicalEnergyCost: 3, targetFrequency: { type: "per_period" as const, timesPerPeriod: 3, periodDays: 7 }, notes: "C25K?" },
+  { name: "Sauna", category: "Challenges", mentalEnergyCost: 0, physicalEnergyCost: 1, targetFrequency: { type: "per_period" as const, timesPerPeriod: 3, periodDays: 7 }, notes: "Find local options" },
+  { name: "Astronomy club", category: "Challenges", mentalEnergyCost: 1, physicalEnergyCost: 0, targetFrequency: { type: "freeform" as const }, notes: "Research local clubs" },
   { name: "Electronic music", category: "Challenges", mentalEnergyCost: 3, physicalEnergyCost: 0, targetFrequency: { type: "per_period" as const, timesPerPeriod: 2, periodDays: 7 }, notes: "Sonic Pi, TidalCycles, spatial audio" },
-  { name: "Vacuuming", category: "Chores", mentalEnergyCost: 0, physicalEnergyCost: 1, targetFrequency: { type: "per_period" as const, timesPerPeriod: 1, periodDays: 7 }, cooldownHours: 168, notes: "" },
+  { name: "Vacuuming", category: "Chores", mentalEnergyCost: 0, physicalEnergyCost: 1, targetFrequency: { type: "per_period" as const, timesPerPeriod: 1, periodDays: 7 }, notes: "" },
 ];
 
 export const seedDefaultActivities = mutation({
@@ -74,10 +58,7 @@ export const seedDefaultActivities = mutation({
 
     const now = Date.now();
     for (const activity of DEFAULT_ACTIVITIES) {
-      const priorityCurve = frequencyToCurve(
-        activity.targetFrequency,
-        activity.cooldownHours
-      );
+      const priorityCurve = frequencyToCurve(activity.targetFrequency);
       await ctx.db.insert("activities", {
         ...activity,
         priorityCurve,
@@ -138,7 +119,6 @@ export const create = mutation({
       timesPerPeriod: v.optional(v.number()),
       periodDays: v.optional(v.number()),
     }),
-    cooldownHours: v.optional(v.number()),
     priorityCurve: v.optional(v.array(v.object({
       days: v.number(),
       priority: v.number(),
@@ -195,7 +175,6 @@ export const update = mutation({
         periodDays: v.optional(v.number()),
       })
     ),
-    cooldownHours: v.optional(v.number()),
     priorityCurve: v.optional(v.array(v.object({
       days: v.number(),
       priority: v.number(),

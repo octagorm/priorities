@@ -5,7 +5,7 @@ import { interpolateHourlyCurve, type HourlyPoint } from "../components/HourlyPr
 type Activity = Doc<"activities">;
 type Session = Doc<"sessions">;
 
-export type ActivitySection = "available" | "cooldown" | "wrong_time" | "too_tired";
+export type ActivitySection = "available" | "wrong_time" | "too_tired";
 
 export interface PrioritizedActivity {
   activity: Activity;
@@ -13,14 +13,12 @@ export interface PrioritizedActivity {
   score: number;
   lastSession: Session | null;
   timeSinceLastMs: number | null;
-  cooldownRemainingMs?: number;
   sessionCount: number;
   recentFrequency: string;
 }
 
 export interface PrioritizedResult {
   available: PrioritizedActivity[];
-  cooldown: PrioritizedActivity[];
   wrong_time: PrioritizedActivity[];
   too_tired: PrioritizedActivity[];
 }
@@ -73,16 +71,6 @@ function legacyScore(activity: Activity, timeSinceLastMs: number | null, session
   }
 
   return score;
-}
-
-function legacyCooldown(activity: Activity, timeSinceLastMs: number | null): number | null {
-  if (activity.cooldownHours && timeSinceLastMs !== null) {
-    const cooldownMs = activity.cooldownHours * 3600_000;
-    if (timeSinceLastMs < cooldownMs) {
-      return cooldownMs - timeSinceLastMs;
-    }
-  }
-  return null;
 }
 
 // --- Recency-biased frequency ---
@@ -148,24 +136,6 @@ function computeRecentFrequency(sessions: Session[], now: number): string {
 
 // --- Curve-based scoring ---
 
-function getCurveCooldownInfo(
-  curve: CurvePoint[],
-  timeSinceLastDays: number
-): { onCooldown: boolean; remainingMs: number } {
-  const sorted = [...curve].sort((a, b) => a.days - b.days);
-  const currentPriority = interpolateCurve(timeSinceLastDays, sorted);
-
-  if (currentPriority <= 0) {
-    // Find first point with priority > 0
-    const firstNonZero = sorted.find((p) => p.priority > 0);
-    if (firstNonZero && firstNonZero.days > timeSinceLastDays) {
-      const remainingDays = firstNonZero.days - timeSinceLastDays;
-      return { onCooldown: true, remainingMs: remainingDays * 24 * 3600_000 };
-    }
-  }
-  return { onCooldown: false, remainingMs: 0 };
-}
-
 export function prioritizeActivities(
   activities: Activity[],
   sessions: Session[],
@@ -189,7 +159,6 @@ export function prioritizeActivities(
 
   const result: PrioritizedResult = {
     available: [],
-    cooldown: [],
     wrong_time: [],
     too_tired: [],
   };
@@ -249,20 +218,6 @@ export function prioritizeActivities(
         ? timeSinceLastMs / (24 * 3600_000)
         : null;
 
-      // Cooldown check
-      if (timeSinceLastDays !== null) {
-        const cooldown = getCurveCooldownInfo(curve, timeSinceLastDays);
-        if (cooldown.onCooldown) {
-          result.cooldown.push({
-            activity, section: "cooldown", score: 0,
-            lastSession, timeSinceLastMs,
-            cooldownRemainingMs: cooldown.remainingMs,
-            sessionCount, recentFrequency,
-          });
-          continue;
-        }
-      }
-
       // Score from curve
       let score: number;
       if (timeSinceLastDays !== null) {
@@ -291,17 +246,6 @@ export function prioritizeActivities(
       });
     } else {
       // --- Legacy fallback ---
-      const cooldownRemaining = legacyCooldown(activity, timeSinceLastMs);
-      if (cooldownRemaining !== null) {
-        result.cooldown.push({
-          activity, section: "cooldown", score: 0,
-          lastSession, timeSinceLastMs,
-          cooldownRemainingMs: cooldownRemaining,
-          sessionCount, recentFrequency,
-        });
-        continue;
-      }
-
       let score = legacyScore(activity, timeSinceLastMs, sessionCount);
 
       // Time-of-day multiplier
