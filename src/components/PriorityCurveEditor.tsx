@@ -11,7 +11,7 @@ interface PriorityCurveEditorProps {
 }
 
 const MAX_DAYS = 30;
-const MAX_PRIORITY = 2;
+const MAX_PRIORITY = 4;
 const MAX_POINTS = 8;
 const MIN_POINTS = 2;
 
@@ -161,7 +161,7 @@ export default function PriorityCurveEditor({ points, onChange }: PriorityCurveE
   };
 
   const X_LABELS = [0, 7, 14, 21, 28];
-  const Y_LABELS = [0, 0.5, 1, 1.5, 2];
+  const Y_LABELS = [0, 1, 2, 3, 4];
 
   return (
     <div>
