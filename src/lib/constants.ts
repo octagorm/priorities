@@ -47,7 +47,22 @@ export function formatTimeRemaining(ms: number): string {
   if (hours < 1) return `${Math.ceil(ms / 60_000)}m`;
   if (hours < 24) return `${Math.ceil(hours)}h`;
   const days = Math.ceil(hours / 24);
-  return `${days}d`;
+  if (days < 7) return `${days}d`;
+  const weeks = Math.ceil(days / 7);
+  if (weeks < 4) return `${weeks}w`;
+  const months = Math.ceil(days / 30);
+  if (months < 12) return `${months}mo`;
+  return `${Math.ceil(days / 365)}y`;
+}
+
+export function formatPauseDuration(ms: number): string {
+  const hours = ms / 3600_000;
+  if (hours < 24) return `${Math.round(hours)}h`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d`;
+  if (days < 30) return `${Math.round(days / 7)}w`;
+  if (days < 365) return `${Math.round(days / 30)}mo`;
+  return `${Math.round(days / 365)}y`;
 }
 
 export function energyDots(cost: number): string {

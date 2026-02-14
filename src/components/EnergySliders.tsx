@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { LucideIcon } from "lucide-react";
 import { MAX_ENERGY, MentalIcon, PhysicalIcon } from "../lib/constants";
 
@@ -29,11 +30,10 @@ function EnergyButtons({
           <button
             key={level}
             onClick={() => onChange(level === value ? level - 1 : level)}
-            className={`w-12 h-12 rounded-full border-1 flex items-center justify-center transition-colors ${
-              isActive
+            className={`w-12 h-12 rounded-full border-1 flex items-center justify-center transition-colors ${isActive
                 ? `${activeColor} ${activeBorder}`
                 : "bg-base-850 border-base-700"
-            }`}
+              }`}
           >
             <Icon
               size={20}
@@ -53,6 +53,48 @@ export function EnergySliders({
   onMentalChange,
   onPhysicalChange,
 }: EnergySlidersProps) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      const active = document.activeElement;
+      if (
+        active &&
+        (active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          (active as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+
+      // Ignore if modifier keys are pressed
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      switch (e.key) {
+        case "1":
+          onPhysicalChange(physicalEnergy === 1 ? 0 : 1);
+          break;
+        case "2":
+          onPhysicalChange(2);
+          break;
+        case "3":
+          onPhysicalChange(3);
+          break;
+        case "4":
+          onMentalChange(mentalEnergy === 1 ? 0 : 1);
+          break;
+        case "5":
+          onMentalChange(2);
+          break;
+        case "6":
+          onMentalChange(3);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [physicalEnergy, mentalEnergy, onPhysicalChange, onMentalChange]);
+
   return (
     <div className="flex items-center gap-8 py-3">
       <EnergyButtons

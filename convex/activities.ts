@@ -217,10 +217,10 @@ export const update = mutation({
 export const pause = mutation({
   args: {
     id: v.id("activities"),
-    weeks: v.number(),
+    durationMs: v.number(),
   },
-  handler: async (ctx, { id, weeks }) => {
-    const pausedUntil = Date.now() + weeks * 7 * 24 * 3600_000;
+  handler: async (ctx, { id, durationMs }) => {
+    const pausedUntil = Date.now() + durationMs;
     await ctx.db.patch(id, { pausedUntil });
   },
 });

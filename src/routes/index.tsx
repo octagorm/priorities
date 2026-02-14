@@ -15,13 +15,13 @@ import { playSound } from "../lib/audio";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
-    q: (search.q as string) ?? "",
+    q: search.q as string | undefined,
   }),
   component: MainScreen,
 });
 
 function MainScreen() {
-  const { q } = Route.useSearch();
+  const { q = "" } = Route.useSearch();
   const activities = useQuery(api.activities.list);
   const sessions = useQuery(api.sessions.listRecent);
   const seed = useMutation(api.activities.seedDefaultActivities);
@@ -258,7 +258,7 @@ function MainScreen() {
       <div className="flex items-center gap-2 mb-2">
         <Link
           to="/list"
-          search={{ q: searchQuery }}
+          search={searchQuery ? { q: searchQuery } : { q: undefined }}
           className="text-base-500 hover:text-base-300 transition-colors shrink-0"
         >
           <List size={22} />

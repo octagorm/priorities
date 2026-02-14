@@ -4,7 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { CATEGORIES, CATEGORY_ICONS, MAX_ENERGY, MentalIcon, PhysicalIcon, formatDuration } from "../../lib/constants";
+import { CATEGORIES, CATEGORY_ICONS, MAX_ENERGY, MentalIcon, PhysicalIcon, formatDuration, formatPauseDuration } from "../../lib/constants";
 import PriorityCurveEditor, {
   type CurvePoint,
 } from "../../components/PriorityCurveEditor";
@@ -54,7 +54,7 @@ function ActivityEditor() {
   const [gongInterval, setGongInterval] = useState(10);
   const [showSessionHistory, setShowSessionHistory] = useState(false);
   const [showPauseDialog, setShowPauseDialog] = useState(false);
-  const [pauseWeeks, setPauseWeeks] = useState(1);
+  const [pauseDurationMs, setPauseDurationMs] = useState(7 * 24 * 3600_000); // Default 1 week
   const [initialized, setInitialized] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -106,7 +106,7 @@ function ActivityEditor() {
       }
       const timerSettings = timerType === "none" ? undefined
         : timerType === "pomodoro" ? { type: "pomodoro" as const, workMinutes, breakMinutes }
-        : { type: "meditation" as const, durationMinutes: meditationMinutes, gongIntervalMinutes: gongInterval };
+          : { type: "meditation" as const, durationMinutes: meditationMinutes, gongIntervalMinutes: gongInterval };
       await updateActivity({
         id: activity._id,
         name,
@@ -143,7 +143,7 @@ function ActivityEditor() {
   const handleCreate = async () => {
     const timerSettings = timerType === "none" ? undefined
       : timerType === "pomodoro" ? { type: "pomodoro" as const, workMinutes, breakMinutes }
-      : { type: "meditation" as const, durationMinutes: meditationMinutes, gongIntervalMinutes: gongInterval };
+        : { type: "meditation" as const, durationMinutes: meditationMinutes, gongIntervalMinutes: gongInterval };
     await createActivity({
       name,
       category,
@@ -162,7 +162,7 @@ function ActivityEditor() {
   const handlePause = async () => {
     await pauseActivity({
       id: activityId as Id<"activities">,
-      weeks: pauseWeeks,
+      durationMs: pauseDurationMs,
     });
     setShowPauseDialog(false);
     navigate({ to: "/", search: { q: "" } });
@@ -260,11 +260,10 @@ function ActivityEditor() {
             <button
               type="button"
               onClick={() => setHourlyEnabled(!hourlyEnabled)}
-              className={`text-xs px-2 py-0.5 rounded border transition-colors ${
-                hourlyEnabled
+              className={`text-xs px-2 py-0.5 rounded border transition-colors ${hourlyEnabled
                   ? "text-accent border-accent/30 bg-accent/10"
                   : "text-base-500 border-base-700"
-              }`}
+                }`}
             >
               {hourlyEnabled ? "Enabled" : "Disabled"}
             </button>
@@ -408,7 +407,7 @@ function ActivityEditor() {
               <div className="bg-base-900 border border-base-700 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm text-base-200">
-                    Pause for {pauseWeeks} {pauseWeeks === 1 ? "week" : "weeks"}
+                    Pause for {formatPauseDuration(pauseDurationMs)}
                   </span>
                   <button
                     onClick={() => setShowPauseDialog(false)}
@@ -417,19 +416,15 @@ function ActivityEditor() {
                     Cancel
                   </button>
                 </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={52}
-                  value={pauseWeeks}
-                  onChange={(e) => setPauseWeeks(Number(e.target.value))}
-                  className="w-full mb-3 accent-amber-400"
+                <LogarithmicPauseSlider
+                  value={pauseDurationMs}
+                  onChange={setPauseDurationMs}
                 />
                 <button
                   onClick={handlePause}
-                  className="w-full text-sm py-1.5 rounded-lg bg-amber-800/30 text-amber-300 border border-amber-700/40 hover:bg-amber-800/50 transition-colors"
+                  className="w-full text-sm py-1.5 mt-3 rounded-lg bg-amber-800/30 text-amber-300 border border-amber-700/40 hover:bg-amber-800/50 transition-colors"
                 >
-                  Pause for {pauseWeeks}w
+                  Pause for {formatPauseDuration(pauseDurationMs)}
                 </button>
               </div>
             ) : (
@@ -491,9 +486,8 @@ function CategoryPicker({ value, onChange }: { value: string; onChange: (v: stri
                 key={cat}
                 type="button"
                 onClick={() => { onChange(cat); setOpen(false); }}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
-                  cat === value ? "text-accent bg-accent/10" : "text-base-200 hover:bg-base-800"
-                }`}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${cat === value ? "text-accent bg-accent/10" : "text-base-200 hover:bg-base-800"
+                  }`}
               >
                 {CatIcon && <CatIcon size={16} className={cat === value ? "text-accent" : "text-base-400"} />}
                 <span>{cat}</span>
@@ -538,11 +532,10 @@ function EnergyPicker({
           <button
             key={level}
             onClick={() => onChange(level === value ? level - 1 : level)}
-            className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors ${
-              isActive
+            className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors ${isActive
                 ? `${activeColor} ${activeBorder}`
                 : "bg-base-850 border-base-700"
-            }`}
+              }`}
           >
             <Icon
               size={16}
@@ -552,5 +545,55 @@ function EnergyPicker({
         );
       })}
     </div>
+  );
+}
+
+function LogarithmicPauseSlider({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const minMs = 3 * 3600_000;
+  const maxMs = 365 * 24 * 3600_000;
+  const logMin = Math.log(minMs);
+  const logMax = Math.log(maxMs);
+
+  // Convert ms to 0-100
+  const sliderValue = ((Math.log(value) - logMin) / (logMax - logMin)) * 100;
+
+  const handleChange = (v: number) => {
+    const ms = Math.exp(logMin + (v / 100) * (logMax - logMin));
+
+    // Snapping logic
+    let snapped = ms;
+    if (ms < 24 * 3600_000) {
+      // Snap to nearest hour
+      snapped = Math.round(ms / 3600_000) * 3600_000;
+    } else if (ms < 30 * 24 * 3600_000) {
+      // Snap to nearest day
+      snapped = Math.round(ms / (24 * 3600_000)) * (24 * 3600_000);
+    } else if (ms < 90 * 24 * 3600_000) {
+      // Snap to nearest week
+      snapped = Math.round(ms / (7 * 24 * 3600_000)) * (7 * 24 * 3600_000);
+    } else {
+      // Snap to nearest month (approx 30 days)
+      snapped = Math.round(ms / (30 * 24 * 3600_000)) * (30 * 24 * 3600_000);
+    }
+
+    onChange(Math.max(minMs, Math.min(maxMs, snapped)));
+  };
+
+  return (
+    <input
+      type="range"
+      min={0}
+      max={100}
+      step={0.1}
+      value={sliderValue}
+      onChange={(e) => handleChange(Number(e.target.value))}
+      className="w-full accent-amber-400"
+    />
   );
 }

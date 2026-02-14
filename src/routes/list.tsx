@@ -7,20 +7,24 @@ import { CATEGORY_ICONS, energyDots } from "../lib/constants";
 
 export const Route = createFileRoute("/list")({
   validateSearch: (search: Record<string, unknown>) => ({
-    q: (search.q as string) ?? "",
+    q: search.q as string | undefined,
   }),
   component: ListView,
 });
 
 function ListView() {
-  const { q } = Route.useSearch();
+  const { q = "" } = Route.useSearch();
   const navigate = useNavigate();
   const activities = useQuery(api.activities.list);
   const [searchQuery, setSearchQuery] = useState(q);
 
   const updateSearch = (value: string) => {
     setSearchQuery(value);
-    navigate({ to: "/list", search: { q: value }, replace: true });
+    navigate({
+      to: "/list",
+      search: value ? { q: value } : { q: undefined },
+      replace: true,
+    });
   };
 
   if (activities === undefined) {
@@ -48,7 +52,7 @@ function ListView() {
       <div className="flex items-center gap-2 mb-4">
         <Link
           to="/"
-          search={{ q: searchQuery }}
+          search={searchQuery ? { q: searchQuery } : { q: undefined }}
           className="text-base-400 text-sm shrink-0"
         >
           <ChevronLeft size={20} />
