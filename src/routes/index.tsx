@@ -339,7 +339,7 @@ function MainScreen() {
               >
                 {showMore
                   ? "Show less"
-                  : `${moreCount + beyondCount} more`}
+                  : "More"}
               </button>
               {showMore && (
                 <>
