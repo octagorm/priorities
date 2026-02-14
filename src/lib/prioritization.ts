@@ -136,6 +136,22 @@ function computeRecentFrequency(sessions: Session[], now: number): string {
 
 // --- Curve-based scoring ---
 
+// Simple seeded PRNG (mulberry32) for deterministic daily tiebreaking
+function mulberry32(seed: number) {
+  return function () {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function dailySeed(): number {
+  const now = new Date();
+  return now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+}
+
 export function prioritizeActivities(
   activities: Activity[],
   sessions: Session[],
@@ -268,6 +284,18 @@ export function prioritizeActivities(
     }
   }
 
-  result.available.sort((a, b) => b.score - a.score);
+  // Daily-seeded tiebreaker so equal-priority activities shuffle once per day
+  const rng = mulberry32(dailySeed());
+  const tiebreaker = new Map<string, number>();
+  for (const item of result.available) {
+    tiebreaker.set(item.activity._id, rng());
+  }
+
+  result.available.sort((a, b) => {
+    const diff = b.score - a.score;
+    if (Math.abs(diff) > 0.001) return diff;
+    return tiebreaker.get(a.activity._id)! - tiebreaker.get(b.activity._id)!;
+  });
+
   return result;
 }

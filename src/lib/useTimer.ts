@@ -19,6 +19,7 @@ interface UseTimerOptions {
 export function useTimer({ onComplete, onGong, onPhaseChange }: UseTimerOptions) {
   const settingsRef = useRef<TimerSettings>({ type: "pomodoro" });
   const workerRef = useRef<Worker | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   // For pomodoro: counts down. For meditation: counts up.
   const [remainingMs, setRemainingMs] = useState(0);
@@ -111,6 +112,46 @@ export function useTimer({ onComplete, onGong, onPhaseChange }: UseTimerOptions)
     } else {
       worker.postMessage("stop");
     }
+  }, [isRunning, isPaused]);
+
+  // Screen Wake Lock: keep screen on while timer is running
+  useEffect(() => {
+    if (!isRunning || isPaused) {
+      wakeLockRef.current?.release();
+      wakeLockRef.current = null;
+      return;
+    }
+    if (!("wakeLock" in navigator)) return;
+
+    let released = false;
+    navigator.wakeLock.request("screen").then((lock) => {
+      if (released) {
+        lock.release();
+      } else {
+        wakeLockRef.current = lock;
+      }
+    }).catch(() => {});
+
+    // Re-acquire on tab visibility change (browser releases wake lock when tab is hidden)
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && !released) {
+        navigator.wakeLock.request("screen").then((lock) => {
+          if (released) {
+            lock.release();
+          } else {
+            wakeLockRef.current = lock;
+          }
+        }).catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      released = true;
+      document.removeEventListener("visibilitychange", handleVisibility);
+      wakeLockRef.current?.release();
+      wakeLockRef.current = null;
+    };
   }, [isRunning, isPaused]);
 
   const start = useCallback((settings: TimerSettings) => {
