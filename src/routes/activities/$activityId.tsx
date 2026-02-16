@@ -261,8 +261,8 @@ function ActivityEditor() {
               type="button"
               onClick={() => setHourlyEnabled(!hourlyEnabled)}
               className={`text-xs px-2 py-0.5 rounded border transition-colors ${hourlyEnabled
-                  ? "text-accent border-accent/30 bg-accent/10"
-                  : "text-base-500 border-base-700"
+                ? "text-accent border-accent/30 bg-accent/10"
+                : "text-base-500 border-base-700"
                 }`}
             >
               {hourlyEnabled ? "Enabled" : "Disabled"}
@@ -398,6 +398,7 @@ function ActivityEditor() {
           <div className="space-y-2 mt-4">
             {isPaused ? (
               <button
+                type="button"
                 onClick={handleUnpause}
                 className="w-full text-amber-300/80 text-sm py-2 border border-amber-400/20 rounded-lg hover:bg-amber-400/10 transition-colors"
               >
@@ -410,6 +411,7 @@ function ActivityEditor() {
                     Pause for {formatPauseDuration(pauseDurationMs)}
                   </span>
                   <button
+                    type="button"
                     onClick={() => setShowPauseDialog(false)}
                     className="text-base-500 text-xs"
                   >
@@ -421,20 +423,26 @@ function ActivityEditor() {
                   onChange={setPauseDurationMs}
                 />
                 <button
+                  type="button"
                   onClick={handlePause}
-                  className="w-full text-sm py-1.5 mt-3 rounded-lg bg-amber-800/30 text-amber-300 border border-amber-700/40 hover:bg-amber-800/50 transition-colors"
+                  className="w-full text-sm py-2.5 mt-3 rounded-lg bg-amber-800/30 text-amber-300 border border-amber-700/40 hover:bg-amber-800/50 active:bg-amber-800/70 transition-colors"
                 >
                   Pause for {formatPauseDuration(pauseDurationMs)}
                 </button>
               </div>
             ) : (
               <button
+                type="button"
                 onClick={() => setShowPauseDialog(true)}
                 className="w-full text-amber-300/80 text-sm py-2 border border-amber-400/20 rounded-lg hover:bg-amber-400/10 transition-colors"
               >
                 Pause activity
               </button>
             )}
+
+            <div className="flex items-center justify-center py-4">
+              <div className="w-16 h-px bg-base-700" />
+            </div>
 
             <button
               onClick={handleArchive}
@@ -533,8 +541,8 @@ function EnergyPicker({
             key={level}
             onClick={() => onChange(level === value ? level - 1 : level)}
             className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors ${isActive
-                ? `${activeColor} ${activeBorder}`
-                : "bg-base-850 border-base-700"
+              ? `${activeColor} ${activeBorder}`
+              : "bg-base-850 border-base-700"
               }`}
           >
             <Icon
