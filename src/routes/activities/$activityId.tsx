@@ -160,12 +160,16 @@ function ActivityEditor() {
   };
 
   const handlePause = async () => {
-    await pauseActivity({
-      id: activityId as Id<"activities">,
-      durationMs: pauseDurationMs,
-    });
-    setShowPauseDialog(false);
-    navigate({ to: "/", search: { q: "" } });
+    try {
+      await pauseActivity({
+        id: activityId as Id<"activities">,
+        durationMs: pauseDurationMs,
+      });
+      setShowPauseDialog(false);
+      navigate({ to: "/", search: { q: "" } });
+    } catch (e) {
+      console.error("Failed to pause activity:", e);
+    }
   };
 
   const handleUnpause = async () => {
@@ -418,14 +422,21 @@ function ActivityEditor() {
                     Cancel
                   </button>
                 </div>
-                <LogarithmicPauseSlider
-                  value={pauseDurationMs}
-                  onChange={setPauseDurationMs}
-                />
+                <div
+                  onTouchEnd={(e) => e.stopPropagation()}
+                  className="select-none"
+                  style={{ touchAction: 'none' }}
+                >
+                  <LogarithmicPauseSlider
+                    value={pauseDurationMs}
+                    onChange={setPauseDurationMs}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={handlePause}
-                  className="w-full text-sm py-2.5 mt-3 rounded-lg bg-amber-800/30 text-amber-300 border border-amber-700/40 hover:bg-amber-800/50 active:bg-amber-800/70 transition-colors"
+                  className="w-full text-sm py-3 mt-4 rounded-lg bg-amber-800/30 text-amber-300 border border-amber-700/40 hover:bg-amber-800/50 active:bg-amber-800/70 transition-colors select-none cursor-pointer"
+                  style={{ touchAction: 'manipulation' }}
                 >
                   Pause for {formatPauseDuration(pauseDurationMs)}
                 </button>
