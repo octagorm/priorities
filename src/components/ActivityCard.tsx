@@ -1,6 +1,4 @@
-import { useMutation } from "convex/react";
 import { Link } from "@tanstack/react-router";
-import { api } from "../../convex/_generated/api";
 import type { PrioritizedActivity } from "../lib/prioritization";
 import type { Doc } from "../../convex/_generated/dataModel";
 import {
@@ -10,30 +8,17 @@ import {
 
 interface ActivityCardProps {
   item: PrioritizedActivity;
-  mentalEnergy: number;
-  physicalEnergy: number;
   onDo?: (activity: Doc<"activities">) => void;
 }
 
 export function ActivityCard({
   item,
-  mentalEnergy,
-  physicalEnergy,
   onDo,
 }: ActivityCardProps) {
-  const logSession = useMutation(api.sessions.log);
   const { activity, section, recentFrequency } = item;
   const Icon = CATEGORY_ICONS[activity.category];
 
   const handleDo = () => {
-    // Timer activities log the session when stopped (with duration), so skip here
-    if (!activity.timerSettings) {
-      logSession({
-        activityId: activity._id,
-        mentalEnergyCostAtTime: mentalEnergy,
-        physicalEnergyCostAtTime: physicalEnergy,
-      });
-    }
     onDo?.(activity);
   };
 
@@ -41,11 +26,10 @@ export function ActivityCard({
 
   return (
     <div
-      className={`rounded-xl p-4 mb-3 border ${
-        isAvailable
-          ? "bg-base-850 border-base-700"
-          : "bg-base-900/50 border-base-800/50"
-      }`}
+      className={`rounded-xl p-4 mb-3 border ${isAvailable
+        ? "bg-base-850 border-base-700"
+        : "bg-base-900/50 border-base-800/50"
+        }`}
     >
       <div className="flex items-center justify-between">
         <Link
@@ -70,11 +54,7 @@ export function ActivityCard({
               <span className="text-emerald-400/70">{energyDots(activity.mentalEnergyCost)}</span>
             </span>
             <span className="text-base-600">&middot;</span>
-            <span>
-              {section === "too_tired"
-                ? needsText(activity, mentalEnergy, physicalEnergy)
-                : recentFrequency}
-            </span>
+            <span>{recentFrequency}</span>
           </div>
         </Link>
         {isAvailable && (
@@ -95,15 +75,3 @@ export function ActivityCard({
   );
 }
 
-function needsText(
-  activity: { mentalEnergyCost: number; physicalEnergyCost: number },
-  mentalEnergy: number,
-  physicalEnergy: number
-): string {
-  const parts = [];
-  if (activity.mentalEnergyCost > mentalEnergy)
-    parts.push(`mental ${activity.mentalEnergyCost}`);
-  if (activity.physicalEnergyCost > physicalEnergy)
-    parts.push(`physical ${activity.physicalEnergyCost}`);
-  return `Needs ${parts.join(" + ")}`;
-}

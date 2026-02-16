@@ -76,20 +76,23 @@ function legacyScore(activity: Activity, timeSinceLastMs: number | null, session
 // --- Recency-biased frequency ---
 
 function formatRate(perWeek: number): string {
-  const perDay = perWeek / 7;
-  if (perDay >= 1.5) {
-    return `${Math.round(perDay)}/day`;
+  if (perWeek >= 6.5) {
+    const perDay = Math.round(perWeek / 7);
+    return perDay === 1 ? "Daily" : `${perDay}/day`;
   }
-  if (perWeek >= 1.5) {
-    return `${Math.round(perWeek)}/week`;
+  if (perWeek >= 0.95) {
+    const rounded = Math.round(perWeek);
+    return rounded === 1 ? "Weekly" : `${rounded}/week`;
   }
   const perMonth = perWeek * (30 / 7);
-  if (perMonth >= 1.5) {
-    return `${Math.round(perMonth)}/month`;
+  if (perMonth >= 0.95) {
+    const rounded = Math.round(perMonth);
+    return rounded === 1 ? "Monthly" : `${rounded}/month`;
   }
   const perYear = perWeek * (365 / 7);
-  if (perYear >= 1.5) {
-    return `${Math.round(perYear)}/year`;
+  if (perYear >= 0.95) {
+    const rounded = Math.round(perYear);
+    return rounded === 1 ? "Yearly" : `${rounded}/year`;
   }
   return "Rarely";
 }

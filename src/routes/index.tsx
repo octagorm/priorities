@@ -326,8 +326,6 @@ function MainScreen() {
             <ActivityCard
               key={item.activity._id}
               item={item}
-              mentalEnergy={mentalEnergy}
-              physicalEnergy={physicalEnergy}
               onDo={handleDo}
             />
           ))}
@@ -347,8 +345,6 @@ function MainScreen() {
                     <ActivityCard
                       key={item.activity._id}
                       item={item}
-                      mentalEnergy={mentalEnergy}
-                      physicalEnergy={physicalEnergy}
                       onDo={handleDo}
                     />
                   ))}
@@ -363,8 +359,6 @@ function MainScreen() {
                     <ActivityCard
                       key={item.activity._id}
                       item={item}
-                      mentalEnergy={mentalEnergy}
-                      physicalEnergy={physicalEnergy}
                     />
                   ))}
                   {prioritized.wrong_time.length > 0 && (
@@ -378,8 +372,6 @@ function MainScreen() {
                     <ActivityCard
                       key={item.activity._id}
                       item={item}
-                      mentalEnergy={mentalEnergy}
-                      physicalEnergy={physicalEnergy}
                     />
                   ))}
                   {pausedActivities.length > 0 && (
