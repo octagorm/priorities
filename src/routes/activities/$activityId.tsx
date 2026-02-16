@@ -55,6 +55,7 @@ function ActivityEditor() {
   const [showSessionHistory, setShowSessionHistory] = useState(false);
   const [showPauseDialog, setShowPauseDialog] = useState(false);
   const [pauseDurationMs, setPauseDurationMs] = useState(7 * 24 * 3600_000); // Default 1 week
+  const [pauseStatus, setPauseStatus] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -160,15 +161,18 @@ function ActivityEditor() {
   };
 
   const handlePause = async () => {
+    setPauseStatus("Pausing...");
     try {
       await pauseActivity({
         id: activityId as Id<"activities">,
         durationMs: pauseDurationMs,
       });
+      setPauseStatus("Done!");
       setShowPauseDialog(false);
       navigate({ to: "/", search: { q: "" } });
-    } catch (e) {
-      console.error("Failed to pause activity:", e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setPauseStatus(`Error: ${msg}`);
     }
   };
 
@@ -440,6 +444,9 @@ function ActivityEditor() {
                 >
                   Pause for {formatPauseDuration(pauseDurationMs)}
                 </button>
+                {pauseStatus && (
+                  <p className="text-xs mt-2 text-center text-base-400">{pauseStatus}</p>
+                )}
               </div>
             ) : (
               <button
